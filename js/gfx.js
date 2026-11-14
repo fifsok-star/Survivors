@@ -143,7 +143,7 @@ function buildTerrain() {
 const WATER_VS = `uniform float uT; varying vec3 vW; void main(){ vec3 p=position; vec4 w=modelMatrix*vec4(p,1.); w.y+=sin(w.x*.12+uT*1.1)*.16+cos(w.z*.1+uT*.9)*.14; vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`;
 const WATER_FS = `uniform float uT; uniform sampler2D uD; uniform vec3 uA; uniform vec3 uB; uniform vec3 uFog; uniform float uFogD; uniform vec2 uFlow; uniform float uUseD; varying vec3 vW;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);} float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
-void main(){ vec2 uv=(vW.xz-vec2(-150.,-100.))/vec2(300.,790.); float d=1.; if(uUseD>.5 && uv.x>0.&&uv.x<1.&&uv.y>0.&&uv.y<1.) d=texture2D(uD,uv).r;
+void main(){ vec2 uv=(vW.xz-vec2(-150.,-100.))/vec2(300.,870.); float d=1.; if(uUseD>.5 && uv.x>0.&&uv.x<1.&&uv.y>0.&&uv.y<1.) d=texture2D(uD,uv).r;
  vec2 q=vW.xz*.35+uFlow*uT; float w=n(q+uT*.25)+n(q*2.3-uT*.3)*.5; vec3 c=mix(uA,uB,smoothstep(.0,.75,d));
  float sp=smoothstep(1.02,1.12,w); c+=sp*.35; float foam=smoothstep(.16,.02,d+ (w-.7)*.07+sin(uT*1.5+vW.x*.3)*.02)*step(.5,uUseD); c=mix(c,vec3(1.),clamp(foam,0.,1.)*.85);
  float streak=smoothstep(.8,1.,n(vec2(vW.x*.9, vW.z*.15)+uFlow*uT*2.))*(1.-step(.5,uUseD)); c=mix(c,vec3(1.),streak*.5);
@@ -251,12 +251,12 @@ function buildVegetation() {
   }
   for (let i = 0; i < 2600 * dens; i++) { const z = 30 + r() * 310, x = pathX(z) + (r() * 2 - 1) * (halfW(z) + 4); if (getH(x, z) < 1.5 || nearStation(x, z, 2) || slopeAt(x, z).ang > .7) continue; put('grass', x, z, .9 + r() * 1.3); }
   // mountain: pines low, rocks and dead trees higher
-  for (let i = 0; i < 520 * dens; i++) {
-    const z = JUNGLE_END + r() * (Z_MAX - JUNGLE_END), x = (r() * 2 - 1) * 70, h = getH(x, z), sl = slopeAt(x, z).ang;
+  for (let i = 0; i < 1100 * dens; i++) {
+    const z = JUNGLE_END + r() * (Z_MAX - JUNGLE_END), x = (r() * 2 - 1) * (halfW(z) + 18), h = getH(x, z), sl = slopeAt(x, z).ang;
     if (nearStation(x, z, 4.5) || sl > .6) continue;
     const q = r();
-    if (h < 120 && q < .4) put('pine', x, z, .7 + r() * .7, Math.abs(x) < 30 ? .4 : 0);
-    else if (q < .75) put(['rock_a', 'rock_b', 'rock_c'][(r() * 3) | 0], x, z, .4 + r() * 1.1, Math.abs(x) < 30 ? .9 : 0);
+    if (h < 150 && q < .4) put('pine', x, z, .7 + r() * .7);
+    else if (q < .75) put(['rock_a', 'rock_b', 'rock_c', 'rock_moss'][(r() * (h < 120 ? 4 : 3)) | 0], x, z, r() < .2 ? 1.6 + r() * 1.4 : .4 + r() * 1.1);   // incl. big boulders to walk around
     else if (q < .85) put('deadtree', x, z, .7 + r() * .6, .3);
     else if (h < 150) put('grass', x, z, 1 + r());
   }
@@ -378,7 +378,7 @@ function buildAnimals() {
   for (let i = 0; i < 16; i++) { const z = 60 + r() * 260; A('parrot', 'parrot', 0, 0, 0, { cx: pathX(z) + (r() - .5) * 30, cz: z, rad: 6 + r() * 12, h: 9 + r() * 6, sp: .5 + r() * .5 }); }
   for (let i = 0; i < 40; i++) { const z = 30 + r() * 300, x = pathX(z) + (r() - .5) * 30; A('butterfly', 'butterfly', x, getH(x, z) + 1, z); }
   for (let i = 0; i < 12; i++) { const z = 60 + r() * 260, x = pathX(z) + (r() < .5 ? -1 : 1) * (6 + r() * 12); if (!nearStation(x, z, 4) && slopeAt(x, z).ang < .5) A('monkey', 'monkey', x, getH(x, z), z); }
-  for (let i = 0; i < 10; i++) { const wi = 1 + (i % 6), z = ledgeZ(wi) + r() * 5, x = -20 + r() * 40; if (slopeAt(x, z).ang < .5) A('goat', 'goat', x, getH(x, z), z); }
+  for (let i = 0; i < 10; i++) { const wi = 1 + (i % 6), x = -25 + r() * 50, z = ledgeZ(wi, x) + r() * 12; if (slopeAt(x, z).ang < .5) A('goat', 'goat', x, getH(x, z), z); }
   for (let i = 0; i < 14; i++) { const a = r() * 6.28, d = 95 + r() * 60; A('fish', 'fish', Math.sin(a) * d, -1, -50 + Math.cos(a) * 30 - 30, { jt: r() * 8 }); }
 }
 function updateAnimals(dt, players) {

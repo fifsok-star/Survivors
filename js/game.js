@@ -240,6 +240,7 @@ function updateMe(dt) {
   }
   if (me.drownT) { me.drownT = 0; $('vign').classList.remove('water'); }
   if (sprint) drain(8.5); else if (carry) drain(moving ? 3.2 : .6); else if (!moving) me.sta += 6.5 * dt;
+  if (moving && !sprint && !carry) { const s2 = slopeAt(me.x, me.z), upw = wx * s2.gx + wz * s2.gz; if (s2.ang > .3 && upw > .3) drain((s2.ang - .3) * 9 * upw); }   // hiking uphill (scree ramps) costs stamina
   me.sta = clamp(me.sta, 0, mx);
   me.anim = carry || holding ? 'carry' : moving ? (sprint ? 'run' : 'walk') : 'idle';
   if (KEY.Space && !KEY._jl && me.sta > 5 && !holding) { KEY._jl = true; me.air = true; me.peak = me.y; me.vy = 7.2; me.vx = wx * sp; me.vz = wz * sp; me.sta -= 5; }

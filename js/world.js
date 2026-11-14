@@ -9,32 +9,48 @@ function hash2(ix, iz, s) { let h = Math.imul(ix, 374761393) + Math.imul(iz, 668
 function vnoise(x, z, s) { const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz); return lerp(lerp(hash2(ix, iz, s), hash2(ix + 1, iz, s), u), lerp(hash2(ix, iz + 1, s), hash2(ix + 1, iz + 1, s), u), v); }
 function fbm(x, z, s) { return vnoise(x, z, s) * .55 + vnoise(x * 2.1, z * 2.1, s + 7) * .3 + vnoise(x * 4.3, z * 4.3, s + 13) * .15; }
 
-const WB = { x0: -150, x1: 150, z0: -100, z1: 690, c: 2 };
+const WB = { x0: -150, x1: 150, z0: -100, z1: 820, c: 2 };
 const JUNGLE_END = 335;
 // everything below is regenerated from a seed by genWorld(): every game gets a new jungle, new tasks order and a new mountain
-let SEED = -1, NS = 0, PA = [26, 52, 10, 21, 1.3, 0], HWP = 0, STREAMS = [], GATE_Z = 132, TREE_Z = 196, Z_MAX = 545, WALLS = [], WOFF = [], SHELF = [], PITS = [], OBST = [], L = null;
+let SEED = -1, NS = 0, PA = [26, 52, 10, 21, 1.3, 0], HWP = 0, STREAMS = [], GATE_Z = 132, TREE_Z = 196, Z_MAX = 545, WALLS = [], WX = [], PITS = [], OBST = [], L = null;
 
 function pathX(z) { const a = sstep(45, 80, z) * (1 - sstep(300, 335, z)); return a * (PA[0] * Math.sin(z / PA[1] + PA[5]) + PA[2] * Math.sin(z / PA[3] + PA[4])); }
 function halfW(z) {
   let w = 20 + 5 * Math.sin(z / 29 + HWP);
   for (const zb of [GATE_Z, TREE_Z]) w = lerp(5, w, sstep(3, 16, Math.abs(z - zb)));
   if (z > JUNGLE_END - 20) w = lerp(w, 26, sstep(JUNGLE_END - 20, JUNGLE_END + 10, z));
+  if (z > JUNGLE_END) w = lerp(w, 44 + 7 * Math.sin(z / 41 + HWP), sstep(JUNGLE_END, JUNGLE_END + 30, z));   // the mountain is wide: plateaus, not a corridor
   return lerp(92, w, sstep(38, 64, z));
 }
+// ---- mountain walls. Each wall: [start z, run, rise] in WALLS and its shape in WX:
+// a wavy, ribbed face; rock shelves part-way up (rest + traverse); on some walls a long scree ramp up to the first shelf.
+function bandOf(b, x) { return sstep(b.x0 - 3, b.x0, x) * (1 - sstep(b.x1, b.x1 + 3, x)); }
+function wallOff(i, x) { const W = WX[i]; return W.a1 * Math.sin(x / W.f1 + W.p1) + 1.1 * Math.sin(x / 2.7 + W.p2) + .6 * Math.sin(x / 1.3 + W.p1 * 2); }
+function wallFrac(i, x, u) {                    // 0..1 of the wall's rise at distance u past its foot
+  const W = WX[i], run = WALLS[i][1], rb = W.ramp ? bandOf(W.ramp, x) : 0; let prev = 0;
+  for (let k = 0; k <= W.sh.length; k++) {
+    const sh = W.sh[k], t = sh ? sh.t : 1; let seg = (t - prev) * run;
+    if (k === 0 && rb) seg = lerp(seg, W.ramp.len, rb);
+    if (u < seg) return prev + (t - prev) * sstep(0, seg, u);
+    u -= seg; prev = t; if (!sh) return 1;
+    const d = sh.d * bandOf(sh, x); if (u < d) return t; u -= d;
+  }
+  return 1;
+}
+function wallLen(i, x) {                        // horizontal length of the wall incl. shelves and ramp at x
+  const W = WX[i], run = WALLS[i][1], rb = W.ramp ? bandOf(W.ramp, x) : 0; let L0 = 0, prev = 0;
+  for (let k = 0; k <= W.sh.length; k++) { const sh = W.sh[k], t = sh ? sh.t : 1; let seg = (t - prev) * run; if (k === 0 && rb) seg = lerp(seg, W.ramp.len, rb); L0 += seg; prev = t; if (sh) L0 += sh.d * bandOf(sh, x); }
+  return L0;
+}
 function wallH(z, x) {
-  let h = 0; if (z < WALLS[0][0] - 3) return 0;
+  let h = 0; if (!WALLS.length || z < WALLS[0][0] - 9) return 0;
   for (let i = 0; i < WALLS.length; i++) {
-    const wz = WALLS[i][0], run = WALLS[i][1], rise = WALLS[i][2];
-    if (z < wz - 3) break; if (z > wz + run + 8) { h += rise; continue; }
-    const off = 2.5 * Math.sin(x / 9 + WOFF[i]);                       // walls are not perfectly straight
-    if (i >= 4) {                                                      // upper walls: a resting shelf in one band
-      const band = 1 - sstep(5, 8, Math.abs(x - SHELF[i]));
-      const a = sstep(wz + off, wz + off + run * .42, z), b = sstep(wz + off + run * .42 + 4.5 * band, wz + off + run + 4.5 * band, z);
-      h += rise * (a * .5 + b * .5);
-    } else h += rise * sstep(wz + off, wz + off + run, z);
+    const z0 = WALLS[i][0] + wallOff(i, x); if (z < z0) break;
+    h += WALLS[i][2] * wallFrac(i, x, z - z0);
   }
   return h;
 }
+function wallEnd(i, x) { return WALLS[i][0] + wallOff(i, x) + wallLen(i, x); }
 function rawH(x, z) {
   const px = pathX(z), d = Math.abs(x - px), hw = halfW(z);
   let h = -5 + 7.5 * sstep(-78, -22, z);
@@ -44,7 +60,7 @@ function rawH(x, z) {
   const jn = sstep(40, 60, z) * (1 - mt);
   if (jn > 0 && d > 2) h += (fbm(x / 17, z / 17, 3 + NS) - .5) * 3.4 * jn * sstep(2, 9, d);
   h += (fbm(x / 6, z / 6, 9 + NS) - .5) * .5;
-  if (mt > 0) h += (fbm(x / 7, z / 7, 21 + NS) - .5) * 1.3 * mt;
+  if (mt > 0) h += ((fbm(x / 7, z / 7, 21 + NS) - .5) * 1.3 + (fbm(x / 24, z / 24, 33 + NS) - .5) * 4.5) * mt;   // rolling plateaus
   // ridges around the valley / couloir
   if (d > hw && z > 42) {
     if (top < 1) h += sstep(hw, hw + 13, d) * (sstep(42, 70, z) * (38 + 10 * fbm(x / 30, z / 30, 5 + NS)) + mt * 12) * (1 - top);
@@ -71,7 +87,7 @@ function slopeAt(x, z) {                        // angle (rad) + unit uphill dir
   _sl.ang = Math.atan(m); _sl.gx = m > 1e-5 ? dx / m : 0; _sl.gz = m > 1e-5 ? dz / m : 1; return _sl;
 }
 function streamLevel(i) { const s = STREAMS[i]; return getH(pathX(s.z), s.z - s.w / 2 - 3) - 1.0; }
-function ledgeZ(i) { return WALLS[i][0] + WALLS[i][1] + 4; }               // a safe spot on the ledge above wall i
+function ledgeZ(i, x) { return wallEnd(i, x || 0) + 4; }                  // a safe spot on the plateau above wall i
 
 const SYMS = ['▲', '●', '■', '✚', '★', '◆'];
 function genWorld(seed) {                    // tries nearby variants until the island passes the sanity checks (same result on every client)
@@ -89,20 +105,35 @@ function genTry(seed, k) {
   OBST = kinds.map((k, i) => ({ k, z: slots[i] }));
   const zOf = k => OBST.find(o => o.k === k).z;
   STREAMS = [{ z: zOf('s0'), w: 9, logs: 2, rope: false }, { z: zOf('s1'), w: 11, logs: 3, rope: true }]; GATE_Z = zOf('gate'); TREE_Z = zOf('tree');
-  // mountain: seven walls of random height and steepness, ledges of random depth
-  const base = [10, 20, 28, 34, 40, 46, 50]; let z = 350 + r() * 5; WALLS = [];
-  for (let i = 0; i < 7; i++) { const rise = base[i] * (.8 + r() * .42), run = Math.max(5, rise / Math.min(4.3, 2 + i * .33 + r() * .45)); WALLS.push([z, run, rise]); z += run + (i >= 1 && i <= 3 ? 19.5 + r() * 2.5 : 14 + r() * 6); }
-  Z_MAX = WALLS[6][0] + WALLS[6][1] + 34;
-  WOFF = WALLS.map(() => r() * 6.28); SHELF = WALLS.map(() => (r() * 2 - 1) * 13);
+  // mountain: seven walls of random height, shelves and ramps, separated by wide rolling plateaus
+  const base = [10, 20, 28, 34, 40, 46, 50]; let z = 350 + r() * 5; WALLS = []; WX = [];
+  for (let i = 0; i < 7; i++) {
+    const rise = base[i] * (.8 + r() * .42), run = Math.max(5, rise / Math.min(4.3, 2 + i * .33 + r() * .45));
+    const W = { a1: 2.5 + r() * 4, f1: 7 + r() * 8, p1: r() * 6.28, p2: r() * 6.28, sh: [], ramp: null };
+    const nsh = i === 0 ? 0 : rise > 30 && r() < .6 ? 2 : 1;
+    for (let k = 0; k < nsh; k++) {
+      const t = nsh === 1 ? .38 + r() * .3 : k ? .62 + r() * .14 : .3 + r() * .14, w = 14 + r() * 26, c = (r() * 2 - 1) * 26;
+      W.sh.push({ t, d: 2.6 + r() * 2.2, x0: c - w / 2, x1: c + w / 2 });
+    }
+    if (nsh && i <= 5 && r() < .55) {                              // scree ramp to the first shelf: walkable, longer, costs stamina
+      const s0 = W.sh[0], rw = 6 + r() * 4, rx = r() < .5 ? s0.x0 + 1 : s0.x1 - 1 - rw;
+      s0.t = Math.max(.22, Math.min(s0.t, 26 * .45 / rise));
+      W.ramp = { x0: rx, x1: rx + rw, len: rise * s0.t / .45 };
+    }
+    WALLS.push([z, run, rise]); WX.push(W);
+    const longest = run + W.sh.reduce((a, b) => a + b.d, 0) + (W.ramp ? W.ramp.len : 0) + 7;
+    z += Math.max(longest + 10, run + 20 + r() * 12);
+  }
+  Z_MAX = Math.max(...[-30, -15, 0, 15, 30].map(x => wallEnd(6, x))) + 34;
   const pitLedge = 1 + ((r() * 2) | 0), leverLedge = pitLedge + 1, campLedge = leverLedge === 3 ? 4 : 3;
-  const pitSide = sg(), pz = OBST[2].z + 16, pEnd = WALLS[pitLedge][0] + WALLS[pitLedge][1];
-  PITS = [{ x: pathX(pz) + 10 * pitSide, z: pz, r: 3.6, d: 8 }, { x: -14, z: (pEnd + WALLS[pitLedge + 1][0]) / 2, r: 3.6, d: 8 }];
+  const pitSide = sg(), pz = OBST[2].z + 16, pEnd = wallEnd(pitLedge, -14);
+  PITS = [{ x: pathX(pz) + 10 * pitSide, z: pz, r: 3.6, d: 8 }, { x: -14, z: (pEnd + WALLS[pitLedge + 1][0] + wallOff(pitLedge + 1, -14)) / 2, r: 3.6, d: 8 }];
   for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) HG[j * GW + i] = rawH(WB.x0 + i * WB.c, WB.z0 + j * WB.c);
   // ---- static layout
   const P = (x, z) => ({ x, z, y: getH(x, z) }), o = {};
   o.spawn = P(6, -6); o.plane = P(0, 2); o.tail = P(-24, -16); o.wing = P(19, 14);
   const c1 = Math.max(OBST[0].z + 9, OBST[1].z - 40), lookSide = -pitSide;
-  o.camps = [P(8, 10), P(pathX(c1) - 6, c1), P(pathX(300), 300), P(6, 342), P(8, ledgeZ(campLedge) + 3), P(-8, ledgeZ(5) + 2), P(-9, Z_MAX - 23)];
+  o.camps = [P(8, 10), P(pathX(c1) - 6, c1), P(pathX(300), 300), P(6, 342), P(8, ledgeZ(campLedge, 8) + 3), P(-8, ledgeZ(5, -8) + 2), P(-9, Z_MAX - 23)];
   o.lookout = P(pathX(GATE_Z - 34) + 11 * lookSide, GATE_Z - 34);
   o.gate = P(pathX(GATE_Z), GATE_Z);
   o.totems = [[-11, -11], [11, -15], [-8, -22], [13, -25]].map(([dx, dz]) => P(pathX(GATE_Z + dz) + dx, GATE_Z + dz));
@@ -115,15 +146,16 @@ function genTry(seed, k) {
   o.pits = PITS.map(p => ({ x: p.x, z: p.z, r: p.r, y: getH(p.x, p.z), top: getH(p.x + (p.x > pathX(p.z) ? -1 : 1) * (p.r + 4), p.z) }));
   o.stakes = [];                              // rope anchors: 0,1 pits; 2.. tops of walls 2..6
   o.pits.forEach((p, i) => { const side = i === 0 && p.x > pathX(p.z) ? -1 : 1; o.stakes.push({ ...P(p.x + side * (p.r + 3.4), p.z), pit: i }); });
-  for (let wi = 2; wi <= 6; wi++) { const x = (wi === pitLedge || wi === 5 ? 1 : wi === leverLedge || wi === campLedge ? -1 : sg()) * (3 + r() * (wi === 5 ? 4 : 9)), z = WALLS[wi][0] + WALLS[wi][1] + 6.5; o.stakes.push({ ...P(x, z), wall: wi, baseZ: WALLS[wi][0] - 4 }); }
-  o.levers = [-6, -2, 2, 6].map(dx => P(dx + 8, ledgeZ(leverLedge) + 6));
-  o.leverChest = P(8, ledgeZ(leverLedge) + 9.5);
+  const offRamp = (wi, x) => { const rp = WX[wi].ramp; return !rp || x < rp.x0 - 6 || x > rp.x1 + 6; };
+  for (let wi = 2; wi <= 6; wi++) { let x = 0; for (let q = 0; q < 30; q++) { x = (wi === pitLedge || wi === 5 ? 1 : wi === leverLedge || wi === campLedge ? -1 : sg()) * (3 + r() * (wi === 5 ? 4 : 11)); if (offRamp(wi, x)) break; } const z = wallEnd(wi, x) + 6.5; o.stakes.push({ ...P(x, z), wall: wi, baseZ: WALLS[wi][0] + wallOff(wi, x) - 4 }); }
+  o.levers = [-6, -2, 2, 6].map(dx => P(dx + 8, Math.max(...[2, 6, 10, 14].map(x => ledgeZ(leverLedge, x))) + 6));
+  o.leverChest = P(8, o.levers[0].z + 3.5);
   o.tablet = P(o.pits[1].x - 1.5, o.pits[1].z + 1.5);
   o.pitChests = [P(o.pits[0].x + 1, o.pits[0].z - 1), P(o.pits[1].x + 1.2, o.pits[1].z - 1)];
-  o.digs = [P(pathX(50) - 15 * lookSide, 50), P(16, ledgeZ(5) + 4)];
+  o.digs = [P(pathX(50) - 15 * lookSide, 50), P(16, ledgeZ(5, 16) + 4)];
   o.radio = P(4, Z_MAX - 13); o.heli = P(-10, Z_MAX - 11);
   const ca = OBST[1].z + 12, cb = OBST[3].z + 14;
-  o.crates = [P(-18 * sg(), 20), P(pathX(ca) + 9 * sg(), ca), P(pathX(cb) + 9 * sg(), cb), P(-16 * sg(), ledgeZ(0) + 2), P(-14, ledgeZ(4) + 2)];
+  o.crates = [P(-18 * sg(), 20), P(pathX(ca) + 9 * sg(), ca), P(pathX(cb) + 9 * sg(), cb), (x => P(x, ledgeZ(0, x) + 2))(-16 * sg()), P(-14, ledgeZ(4, -14) + 2)];
   L = o;
 }
 function worldOK() {
@@ -140,7 +172,8 @@ function worldOK() {
     for (const p of PITS) if (dist2(x, z, p.x, p.z) < p.r + 2.8) return false;
     if (!skip && slopeAt(x, z).ang > .68) return false;
   }
-  for (let i = 0; i < 7; i++) { let f = 0; const z0 = WALLS[i][0] + WALLS[i][1], z1 = i < 6 ? WALLS[i + 1][0] : Z_MAX; for (let z = z0; z < z1; z += .5) if (slopeAt(0, z).ang < .6) f += .5; if (f < 5) return false; }
+  for (let i = 0; i < 7; i++) for (const x of [-20, 0, 20]) { let f = 0; const z0 = wallEnd(i, x), z1 = i < 6 ? WALLS[i + 1][0] + wallOff(i + 1, x) : Z_MAX; for (let z = z0; z < z1; z += .5) if (slopeAt(x, z).ang < .6) f += .5; if (f < 8) return false; }
+  if (Z_MAX > WB.z1 - 75) return false;
   return true;
 }
 genWorld(1);
@@ -161,8 +194,9 @@ function newWorld(nPlayers) {
   it('shovel', L.tail.x + 3, L.tail.z - 2); it('drink', L.tail.x - 2, L.tail.z + 3); it('flare', L.wing.x, L.wing.z + 3);
   for (let i = 0; i < 7; i++) it('coconut', -60 + r() * 120, -18 + r() * 40);
   for (let z = 60; z < 320; z += 17) { const s = r() < .5 ? -1 : 1; it(r() < .5 ? 'banana' : 'coconut', pathX(z) + s * (5 + r() * 10), z + r() * 8); }
-  it('piton', -5, 348); it('piton', 9, 346); it('piton', -8, ledgeZ(1)); it('piton', 12, ledgeZ(2) - 1); it('can', 3, ledgeZ(1) + 2); it('banana', -11, ledgeZ(4)); it('drink', 9, ledgeZ(5));
-  it('piton', -3, ledgeZ(4) + 1); it('piton', 6, ledgeZ(5) + 1); it('medkit', -5, ledgeZ(3) + 1);
+  it('piton', -5, 342); it('piton', 9, 341); it('piton', -8, ledgeZ(1, -8)); it('piton', 12, ledgeZ(2, 12) - 1); it('can', 3, ledgeZ(1, 3) + 2); it('banana', -11, ledgeZ(4, -11)); it('drink', 9, ledgeZ(5, 9));
+  it('piton', -3, ledgeZ(4, -3) + 1); it('piton', 6, ledgeZ(5, 6) + 1); it('medkit', -5, ledgeZ(3, -5) + 1);
+  WX.forEach((w, i) => w.sh.forEach((sh, k) => { if ((i + k) % 2) return; const x = (sh.x0 + sh.x1) / 2, u = WALLS[i][1] * sh.t; let zz = WALLS[i][0] + wallOff(i, x); for (let q = 0; q < 200 && wallH(zz, x) - wallH(WALLS[i][0] - 9, x) < WALLS[i][2] * sh.t - .05; q++) zz += .25; it(['banana', 'piton', 'drink', 'can'][(i + k) % 4], x, zz + Math.min(1.2, sh.d / 3)); }));
   W.logs = L.logs.map((g, i) => ({ id: i, x: g.x, z: g.z, ry: r() * 3, len: g.len, need: Math.min(g.need, Math.max(1, nPlayers)), car: [], br: -1, slot: 0 }));
   W.bridges = STREAMS.map(() => ({ logs: 0, rope: false, done: false }));
   const ord = [0, 1, 2, 3].sort(() => r() - .5), sym = [0, 1, 2, 3, 4, 5].sort(() => r() - .5).slice(0, 4);
