@@ -177,7 +177,7 @@ function updateMe(dt) {
   // --- lookout tree
   if (me.mode === 'tree') {
     const t = L.lookout; me.treeH += iz * 2.1 * dt; if (moving) drain(5); else drain(.8);
-    const a = me.treeH * .5; me.x = t.x + Math.sin(a) * 1.3; me.z = t.z + Math.cos(a) * 1.3; me.y = t.y + me.treeH; me.ry = a + Math.PI; me.anim = 'climb';
+    const a = me.treeH * .5; me.x = t.x + Math.sin(a) * 1.3; me.z = t.z + Math.cos(a) * 1.3; me.y = t.y + me.treeH; me.ry = a + Math.PI; me.anim = 'tree';
     if (me.treeH >= 13.6) { me.mode = 'plat'; me.x = t.x + 1.2; me.z = t.z; me.y = t.y + 13.85; toast(T('t_plat')); }
     else if (me.treeH <= 0) { me.mode = ''; me.x = t.x; me.z = t.z - 2.2; }
     else if (me.sta <= 0) { me.mode = ''; me.air = true; me.peak = me.y; me.vx = Math.sin(a) * 2; me.vz = Math.cos(a) * 2; me.vy = 0; }
@@ -203,15 +203,25 @@ function updateMe(dt) {
     const v = 9; n.x -= sl.gx * v * dt; n.z -= sl.gz * v * dt; constrain(prevZ, n); me.x = n.x; me.z = n.z; me.y = groundAt(me.x, me.z); me.anim = 'slide'; me.ry = Math.atan2(sl.gx, sl.gz); me.sta = Math.min(mx, me.sta + 1.5 * dt);
     return;
   }
-  if (steep) {                                                  // climbing
+  if (steep) {                                                  // climbing: controls follow the wall, not the camera
     const rope = ropeNear(me.x, me.z), pit = inPit(me.x, me.y, me.z) >= 0, pin = pitonNear(me.x, me.y, me.z);
-    const along = Math.abs(wx * sl.gx + wz * sl.gz), sp = 2.0 * (rope ? 1.5 : 1) * lerp(1, Math.cos(sl.ang) * 1.15, along);
-    if (moving) { n.x += wx * sp * dt; n.z += wz * sp * dt; drain(5.2 * (rope ? .32 : 1) * (pit ? 9 : 1) * (wx * sl.gx + wz * sl.gz < -.3 ? .4 : 1)); }
-    else if (pin || rope) me.sta = Math.min(mx, me.sta + 4.5 * dt); else drain(1.1);
+    let rx = -sl.gz, rz = sl.gx; if (rx * -fz + rz * fx < 0) { rx = -rx; rz = -rz; }          // "right" along the wall as the camera sees it
+    const ca = Math.cos(sl.ang), k = rope ? 1.5 : 1;
+    if (me.lunge > 0) { me.lunge -= dt; n.x += sl.gx * ca * 6.2 * dt; n.z += sl.gz * ca * 6.2 * dt; }
+    else if (moving) {
+      const up = iz > 0 ? 1.75 : 2.3;                                                       // m/s along the rock, faster going down
+      n.x += (sl.gx * iz * ca * up + rx * ix * 1.55) * k * dt; n.z += (sl.gz * iz * ca * up + rz * ix * 1.55) * k * dt;
+      drain((iz > 0 ? 5.2 : iz < 0 ? 1.6 : 3.2) * (rope ? .32 : 1) * (pit ? 9 : 1));
+    } else if (pin || rope) me.sta = Math.min(mx, me.sta + 4.5 * dt); else drain(1.0);
     constrain(prevZ, n); me.x = n.x; me.z = n.z; me.y = groundAt(me.x, me.z); me.anim = 'climb'; me.ry = Math.atan2(sl.gx, sl.gz);
-    if (KEY.Space && !KEY._jl) { KEY._jl = true; me.air = true; me.peak = me.y; me.vy = 4.5; me.vx = -sl.gx * 3.5 + wx * 2; me.vz = -sl.gz * 3.5 + wz * 2; drain(0); me.sta -= 6; }
+    if (KEY.Space && !KEY._jl) {
+      KEY._jl = true;
+      if (iz > 0 && !pit) { if (me.sta > 13) { me.sta -= 12; me.lunge = .3; sfx('step'); } else hint('t_tired'); }   // lunge upwards
+      else { me.air = true; me.peak = me.y; me.vy = 4.5; me.vx = -sl.gx * 3.5; me.vz = -sl.gz * 3.5; me.sta -= 4; }        // let go
+    }
     return;
   }
+  me.lunge = 0;
   // walking
   const carry = WS && WS.logs.find(l => l.car.includes(me.id) && l.car.length >= l.need), holding = WS && WS.logs.some(l => l.car.includes(me.id));
   const sprint = KEY.ShiftLeft && moving && me.sta > 1 && !holding && !swim;
@@ -257,7 +267,7 @@ function updateOthers(dt) {
     if (o.tx == null) continue;
     if (Math.abs(o.tx - o.x) + Math.abs(o.tz - o.z) + Math.abs(o.ty - o.y) > 14) { o.x = o.tx; o.y = o.ty; o.z = o.tz; }
     o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; o.z += (o.tz - o.z) * k; let d = o.tr - o.ry; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; o.ry += d * k;
-    o.g.position.set(o.x, o.y, o.z); o.g.rotation.y = o.ry; animChar(o.g, o.a, dt, 0, o.m); setHeld(o.g, o.a === 'carry' || o.a === 'climb' ? '' : o.h);
+    o.g.position.set(o.x, o.y, o.z); o.g.rotation.y = o.ry; animChar(o.g, o.a, dt, 0, o.m); setHeld(o.g, o.a === 'carry' || o.a === 'climb' || o.a === 'tree' ? '' : o.h); o.g.userData.tired = o.a === 'climb' && o.s < 22;
   }
 }
 
@@ -360,11 +370,13 @@ function onEv(e) {
 const _v = new THREE.Vector3();
 function updateCamera(dt) {
   const me = ME, ty = me.y + 1.55, cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch), fx = Math.sin(CAM.yaw), fz = Math.cos(CAM.yaw);
-  let d = CAM.dist;
-  for (let k = 1; k <= 14; k++) { const t = k / 14 * CAM.dist, x = me.x - fx * cp * t, z = me.z - fz * cp * t, y = ty + sp * t; if (y < getH(x, z) + .35 || (t > .7 && insideCol(x, y, z, .28))) { d = Math.max(.8, (k - 1) / 14 * CAM.dist - .15); break; } }
+  const wall = ME.anim === 'climb' || ME.anim === 'slide'; CAM.dz = (CAM.dz || 0) + ((wall ? 1.6 : 0) - (CAM.dz || 0)) * Math.min(1, dt * 3);
+  let d = CAM.dist + CAM.dz;
+  for (let k = 1; k <= 14; k++) { const t = k / 14 * (CAM.dist + CAM.dz), x = me.x - fx * cp * t, z = me.z - fz * cp * t, y = ty + sp * t; if (y < getH(x, z) + .35 || (t > .7 && insideCol(x, y, z, .28))) { d = Math.max(.8, (k - 1) / 14 * (CAM.dist + CAM.dz) - .15); break; } }
   CAM.cd = CAM.cd == null ? d : CAM.cd + (d - CAM.cd) * Math.min(1, dt * (d < CAM.cd ? 20 : 4));
   const x = me.x - fx * cp * CAM.cd, z = me.z - fz * cp * CAM.cd; let y = ty + sp * CAM.cd; y = Math.max(y, getH(x, z) + .4, .35);
   camera.position.set(x, y, z); camera.lookAt(me.x + fx * 1.2, ty + .15, me.z + fz * 1.2);
+  if (ME.g) { const close = CAM.cd < 1.45; ME.g.visible = !close; }      // never fill the screen with your own head when the camera is pressed against a wall
 }
 function menuCamera(t) { const a = t * .06, r = 26; camera.position.set(L.plane.x + Math.sin(a) * r, 7 + Math.sin(t * .1) * 2, L.plane.z + Math.cos(a) * r - 4); camera.lookAt(L.plane.x, 3.5, L.plane.z + 8); }
 
@@ -395,6 +407,7 @@ function updateHud(dt) {
   drawCompass();
   hudAcc += dt; if (hudAcc < .25) return; hudAcc = 0;
   $('alt').textContent = Math.max(0, Math.round(ME.y)) + ' m';
+  $('keys').textContent = ME.anim === 'climb' ? T('k_climb') : 'WASD · Shift · Space · E · F · G · Tab · 1-3 · Esc';
   const row = (n, c, sta, mxs, ko, me, extra) => `<div class="mate${ko ? ' ko' : ''}${me ? ' me' : ''}"><div class="ph" style="background-image:url(${ui.thumbs[c] || ''})"></div><div class="inf"><div class="nm"><span>${ko ? '💀 ' : ''}${esc(n)}</span><em>${extra}</em></div><div class="mbar"><div style="width:${clamp(sta || 0, 0, 100)}%"></div><i style="width:${100 - (mxs == null ? 100 : mxs)}%"></i></div></div></div>`;
   const mine = lobby.players.find(p => p.id === ME.id) || { n: SAVE.name || T('char' + SAVE.ch), c: SAVE.ch };
   let h = row(mine.n, mine.c, ME.sta, mx, ME.ko, true, Math.round(ME.sta) + '%');
@@ -414,12 +427,12 @@ function frame(now) {
   const dt = Math.min(.05, (now - lastT) / 1000 || .016); lastT = now; GFX.t += dt;
   if (phase === 'play') {
     updateMe(dt); updateInteract(dt);
-    if (ME.g) { ME.g.position.set(ME.x, ME.y, ME.z); let d = ME.ry - ME.g.rotation.y; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; ME.g.rotation.y += d * Math.min(1, dt * 14); animChar(ME.g, ME.anim, dt, 0, ME.moving); setHeld(ME.g, ME.anim === 'climb' || ME.anim === 'carry' || ME.anim === 'swim' ? '' : ME.quick[ME.sel]); }
+    if (ME.g) { ME.g.position.set(ME.x, ME.y, ME.z); let d = ME.ry - ME.g.rotation.y; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; ME.g.rotation.y += d * Math.min(1, dt * 14); animChar(ME.g, ME.anim, dt, 0, ME.moving); setHeld(ME.g, ME.anim === 'climb' || ME.anim === 'tree' || ME.anim === 'carry' || ME.anim === 'swim' ? '' : ME.quick[ME.sel]); ME.g.userData.tired = ME.anim === 'climb' && ME.sta < 22; }
     updateOthers(dt); updateDynamic(dt);
     if (!Net.isHost) { sendAcc += dt; if (sendAcc > .075) { sendAcc = 0; Net.toHost({ t: 'p', s: myState() }); } }
     updateCamera(dt); updateHud(dt);
     updateMood(ME.z, dt, ME.x, ME.y, ME.z);
-    if (AC) { const jung = sstep(40, 70, ME.z) * (1 - sstep(320, 350, ME.z)); ambF.frequency.value = lerp(lerp(520, 900, sstep(300, 500, ME.z)), 300, jung); ambG.gain.value = lerp(.06, .025, jung) + sstep(380, 520, ME.z) * .05; if (jung > .5 && Math.random() < dt * .5) sfx('bird'); if ((ME.anim === 'walk' || ME.anim === 'run' || ME.anim === 'climb' && ME.moving)) { stepAcc += dt * (ME.anim === 'run' ? 1.6 : 1); if (stepAcc > .38) { stepAcc = 0; sfx('step'); } } }
+    if (AC) { const jung = sstep(40, 70, ME.z) * (1 - sstep(320, 350, ME.z)); ambF.frequency.value = lerp(lerp(520, 900, sstep(300, 500, ME.z)), 300, jung); ambG.gain.value = lerp(.06, .025, jung) + sstep(380, 520, ME.z) * .05; if (jung > .5 && Math.random() < dt * .5) sfx('bird'); if ((ME.anim === 'walk' || ME.anim === 'run' || (ME.anim === 'climb' || ME.anim === 'tree') && ME.moving)) { stepAcc += dt * (ME.anim === 'run' ? 1.6 : 1); if (stepAcc > .38) { stepAcc = 0; sfx('step'); } } }
     updateAnimals(dt, [ME, ...OTH.values()]);
   } else {
     menuCamera(GFX.t); updateMood(-20, dt, L.plane.x, L.plane.y, L.plane.z); updateAnimals(dt, []);

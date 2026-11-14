@@ -325,9 +325,10 @@ const _R = (o, x, y, z, k) => { o.rotation.x += (x - o.rotation.x) * k; o.rotati
 // state: idle walk run climb air slide carry saw ko swim sit pull
 function animChar(g, st, dt, speed, moving) {
   const u = g.userData, p = u.p, k = Math.min(1, dt * 12);
-  u.ph += dt * (st === 'run' ? 11 : st === 'climb' ? (moving ? 7 : 0) : st === 'walk' || st === 'carry' ? 8 : st === 'saw' ? 9 : st === 'swim' ? 6 : 2);
+  const tree = st === 'tree'; if (tree) st = 'climb';
+  u.ph += dt * (st === 'run' ? 11 : st === 'climb' ? (moving ? 6.5 : .6) : st === 'walk' || st === 'carry' ? 8 : st === 'saw' ? 9 : st === 'swim' ? 6 : 2);
   const s = Math.sin(u.ph), c = Math.cos(u.ph);
-  let bx = 0, by = 0, hip = u.hipY, tor = 0, head = 0;
+  let bx = 0, bz = 0, off = 0, hip = u.hipY, tor = 0, head = 0;
   let aL = [0, 0, .08], aR = [0, 0, -.08], fL = -.1, fR = -.1, lL = 0, lR = 0, sL = 0, sR = 0;
   if (st === 'walk' || st === 'run' || st === 'carry') {
     const A = st === 'run' ? 1.0 : .6;
@@ -335,8 +336,13 @@ function animChar(g, st, dt, speed, moving) {
     aL = [s * A * .9, 0, .1]; aR = [-s * A * .9, 0, -.1]; fL = fR = st === 'run' ? -1.1 : -.35; tor = st === 'run' ? .22 : .06; hip += Math.abs(c) * .05 * A;
     if (st === 'carry') { aL = [-2.7, 0, .25]; aR = [-2.7, 0, -.25]; fL = fR = -.5; tor = .05; }
   } else if (st === 'climb') {
-    aL = [-2.5 + s * .5, 0, .25]; aR = [-2.5 - s * .5, 0, -.25]; fL = -.7 - s * .4; fR = -.7 + s * .4;
-    lL = -.9 - s * .5; lR = -.9 + s * .5; sL = 1.3 + s * .4; sR = 1.3 - s * .4; tor = -.1; head = -.35;
+    // body lies against the rock: lean by the wall angle, one arm reaches while the opposite leg pushes
+    const ang = tree ? 1.45 : slopeAt(g.position.x, g.position.z).ang, m = moving ? 1 : .12;
+    bx = clamp(Math.PI / 2 - ang, 0, .75) * .95; off = tree ? 0 : -.2 - bx * .25;
+    aL = [-2.55 - s * .5 * m, 0, .38 + c * .12 * m]; aR = [-2.55 + s * .5 * m, 0, -.38 + c * .12 * m]; fL = -.55 + s * .45 * m; fR = -.55 - s * .45 * m;
+    lL = -1.0 + s * .55 * m; lR = -1.0 - s * .55 * m; sL = 1.45 - s * .5 * m; sR = 1.45 + s * .5 * m; tor = -.12 + Math.abs(c) * .06 * m; head = -.5;
+    hip = u.hipY + Math.abs(s) * .05 * m;
+    if (u.tired) { bz = Math.sin(GFX.t * 31) * .05; aL[2] += Math.sin(GFX.t * 37) * .08; aR[2] += Math.sin(GFX.t * 29) * .08; }
   } else if (st === 'air' || st === 'slide') {
     aL = [-2.6 + s * .5, 0, .9]; aR = [-2.6 - s * .5, 0, -.9]; lL = -.5 + s * .4; lR = .3 - s * .4; sL = .9; sR = .6; if (st === 'slide') { bx = -.9; tor = .2; }
   } else if (st === 'saw') { aL = [-1.3 + s * .3, 0, -.2]; aR = [-1.3 - s * .3, 0, .2]; fL = fR = -.6 - s * .5; tor = .35 + s * .12; lL = -.3; lR = .35; }
@@ -345,7 +351,7 @@ function animChar(g, st, dt, speed, moving) {
   else if (st === 'sit') { hip = u.hipY - .27; lL = lR = -1.5; sL = sR = 1.45; aL = [-.5, 0, .15]; aR = [-.5, 0, -.15]; fL = fR = -.8; tor = .12; }
   else if (st === 'pull') { aL = [-1.2, 0, .1]; aR = [-1.2, 0, -.1]; fL = fR = -.3; tor = .6; lL = -.5; lR = .4; sL = .5; }
   else { tor = Math.sin(u.ph) * .02; aL = [Math.sin(u.ph) * .04, 0, .1]; aR = [-Math.sin(u.ph) * .04, 0, -.1]; head = Math.sin(u.ph * .5) * .05; }
-  u.body.rotation.x += (bx - u.body.rotation.x) * k * .6;
+  u.body.rotation.x += (bx - u.body.rotation.x) * k * .6; u.body.rotation.z = bz; u.body.position.z += (off - u.body.position.z) * k * .6;
   p.hips.position.y += (hip - p.hips.position.y) * k;
   _R(p.torso, tor, 0, 0, k); _R(p.head, head, 0, 0, k);
   _R(p.armL, aL[0], aL[1], -aL[2], k); _R(p.armR, aR[0], aR[1], -aR[2], k); _R(p.foreL, fL, 0, 0, k); _R(p.foreR, fR, 0, 0, k);
