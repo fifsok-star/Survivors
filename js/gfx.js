@@ -295,11 +295,11 @@ function beacon(color) {
 
 // ---------------------------------------------------------------- characters
 function makeChar(ci, name) {
-  const o = rig('char' + ci); const g = new THREE.Group(); g.add(o); o.scale.setScalar(.92);
+  const o = rig('char' + ci); const g = new THREE.Group(); g.add(o);
   const P = o.userData.parts, pre = 'c' + ci + '_', p = {};
   for (const k of ['hips', 'torso', 'head', 'armL', 'armR', 'foreL', 'foreR', 'legL', 'legR', 'shinL', 'shinR']) p[k] = P[pre + k];
   g.userData = { p, body: o, hipY: p.hips.position.y, ph: Math.random() * 6, held: null, heldType: '', lab: null };
-  if (name) { const s = labelSprite(name); s.position.y = 2.25; g.add(s); g.userData.lab = s; }
+  if (name) { const s = labelSprite(name); s.position.y = 2.2; g.add(s); g.userData.lab = s; }
   return g;
 }
 function setHeld(g, type) {
@@ -307,7 +307,7 @@ function setHeld(g, type) {
   if (u.held) { u.held.parent.remove(u.held); u.held = null; }
   if (!type) return;
   const def = ITEMS[type], m = new THREE.Mesh(baked('it_' + (def.model || type)), vcMat); m.castShadow = true;
-  m.position.set(0, -.34, .06); m.rotation.set(type === 'saw' ? 0 : 1.57, 0, type === 'saw' ? 1.57 : 0); if (type === 'shovel') m.rotation.set(3.14, 0, 0);
+  m.position.set(0, -.3, .09); m.rotation.set(type === 'saw' ? 0 : 1.57, 0, type === 'saw' ? 1.57 : 0); if (type === 'shovel') m.rotation.set(3.14, 0, 0);
   u.p.foreR.add(m); u.held = m;
 }
 const _R = (o, x, y, z, k) => { o.rotation.x += (x - o.rotation.x) * k; o.rotation.y += ((y || 0) - o.rotation.y) * k; o.rotation.z += ((z || 0) - o.rotation.z) * k; };
@@ -331,7 +331,7 @@ function animChar(g, st, dt, speed, moving) {
   } else if (st === 'saw') { aL = [-1.3 + s * .3, 0, -.2]; aR = [-1.3 - s * .3, 0, .2]; fL = fR = -.6 - s * .5; tor = .35 + s * .12; lL = -.3; lR = .35; }
   else if (st === 'ko') { bx = -1.5; aL = [-.4, 0, 1.3]; aR = [-.3, 0, -1.3]; lL = .1; lR = -.15; }
   else if (st === 'swim') { bx = 1.15; aL = [-2.9 + s * .9, 0, .5]; aR = [-2.9 - s * .9, 0, -.5]; lL = s * .5; lR = -s * .5; head = -.7; }
-  else if (st === 'sit') { hip = .42; lL = lR = -1.5; sL = sR = 1.45; aL = [-.5, 0, .15]; aR = [-.5, 0, -.15]; fL = fR = -.8; tor = .12; }
+  else if (st === 'sit') { hip = u.hipY - .27; lL = lR = -1.5; sL = sR = 1.45; aL = [-.5, 0, .15]; aR = [-.5, 0, -.15]; fL = fR = -.8; tor = .12; }
   else if (st === 'pull') { aL = [-1.2, 0, .1]; aR = [-1.2, 0, -.1]; fL = fR = -.3; tor = .6; lL = -.5; lR = .4; sL = .5; }
   else { tor = Math.sin(u.ph) * .02; aL = [Math.sin(u.ph) * .04, 0, .1]; aR = [-Math.sin(u.ph) * .04, 0, -.1]; head = Math.sin(u.ph * .5) * .05; }
   u.body.rotation.x += (bx - u.body.rotation.x) * k * .6;
@@ -343,7 +343,7 @@ function animChar(g, st, dt, speed, moving) {
 function charThumb(ci) {
   const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, .75, .1, 20), g = makeChar(ci);
   sc.add(g); sc.add(new THREE.HemisphereLight(0xffffff, 0x777777, 1.0)); const d = new THREE.DirectionalLight(0xffffff, .9); d.position.set(2, 4, 5); sc.add(d);
-  g.rotation.y = .35; cam.position.set(0, 1.15, 4.6); cam.lookAt(0, .98, 0);
+  g.rotation.y = .35; cam.position.set(0, 1.1, 4.5); cam.lookAt(0, .93, 0);
   const rt = new THREE.WebGLRenderTarget(240, 320), buf = new Uint8Array(240 * 320 * 4);
   const tm = renderer.toneMapping; renderer.toneMapping = THREE.NoToneMapping;
   renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(sc, cam); renderer.readRenderTargetPixels(rt, 0, 0, 240, 320, buf); renderer.setRenderTarget(null); renderer.toneMapping = tm;
