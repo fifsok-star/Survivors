@@ -365,18 +365,33 @@ function drawObjective() {
   else if (!W.bridges[0].done) k = ME.z < 40 ? 'o_wreck' : 'o_bridge1'; else if (!W.totems.open) k = 'o_gate'; else if (!W.saw.done) k = 'o_tree'; else if (!W.bridges[1].done) k = 'o_bridge2'; else k = 'o_camp';
   $('objective').textContent = T(k);
 }
-let hudAcc = 0, stepAcc = 0, fpsN = 0, fpsT = 0;
+let hudAcc = 0, stepAcc = 0, fpsN = 0, fpsT = 0, cmpEls = null;
+// compass strip: north is the mountain side of the island (+Z), east is -X
+function drawCompass() {
+  const el = $('compass'), w = el.clientWidth, span = Math.PI * .9, head = -CAM.yaw;
+  if (!cmpEls) { cmpEls = []; ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'].forEach((t, i) => { const d = document.createElement('i'); d.textContent = t; if (i % 2 === 0) d.className = 'c'; el.appendChild(d); cmpEls.push({ d, b: i * Math.PI / 4 }); }); for (let i = 0; i < 24; i++) if (i % 3) { const d = document.createElement('i'); d.textContent = '|'; d.className = 't'; el.appendChild(d); cmpEls.push({ d, b: i * Math.PI / 12 }); } el.insertAdjacentHTML('beforeend', '<i class="p" id="cmpPeak">⛰️</i>'); }
+  const put = (d, b) => { let r = b - head; r = Math.atan2(Math.sin(r), Math.cos(r)); if (Math.abs(r) > span / 2 + .1) { d.style.display = 'none'; return; } d.style.display = 'block'; d.style.left = (w / 2 + r / span * w) + 'px'; };
+  for (const c of cmpEls) put(c.d, c.b);
+  const to = (x, z) => Math.atan2(-(x - ME.x), z - ME.z), pk = $('cmpPeak');
+  if (has('compass') && dist2(ME.x, ME.z, L.radio.x, L.radio.z) > 12) put(pk, to(L.radio.x, L.radio.z)); else pk.style.display = 'none';
+  const ids = new Set();
+  for (const [id, o] of OTH) { ids.add('cm_' + id); let d = document.getElementById('cm_' + id); if (!d) { d = document.createElement('i'); d.className = 'm'; d.id = 'cm_' + id; d.innerHTML = `<b style="background-image:url(${ui.thumbs[o.c] || ''})"></b>`; el.appendChild(d); } put(d, to(o.x, o.z)); }
+  el.querySelectorAll('i.m').forEach(d => { if (!ids.has(d.id)) d.remove(); });
+}
 function updateHud(dt) {
   const mx = maxSta(); $('staFill').style.width = clamp(ME.sta, 0, 100) + '%'; $('staHun').style.width = ME.hun + '%'; $('staInj').style.width = ME.inj + '%'; $('staHun').style.right = ME.inj + '%';
   $('staFill').className = ME.boost > 0 ? 'boost' : ME.sta < 18 ? 'low' : '';
+  drawCompass();
   hudAcc += dt; if (hudAcc < .25) return; hudAcc = 0;
   $('alt').textContent = Math.max(0, Math.round(ME.y)) + ' m';
-  let h = ''; for (const o of OTH.values()) { const dd = Math.round(Math.hypot(o.x - ME.x, o.y - ME.y, o.z - ME.z)), up = o.y - ME.y; h += `<div class="mate${o.k ? ' ko' : ''}"><span>${o.k ? '💀 ' : ''}${esc(o.n)}</span><em>${dd} m ${up > 3 ? '▲' : up < -3 ? '▼' : ''}</em><div class="mbar"><div style="width:${o.s || 0}%"></div><i style="width:${100 - (o.mx == null ? 100 : o.mx)}%"></i></div></div>`; }
+  const row = (n, c, sta, mxs, ko, me, extra) => `<div class="mate${ko ? ' ko' : ''}${me ? ' me' : ''}"><div class="ph" style="background-image:url(${ui.thumbs[c] || ''})"></div><div class="inf"><div class="nm"><span>${ko ? '💀 ' : ''}${esc(n)}</span><em>${extra}</em></div><div class="mbar"><div style="width:${clamp(sta || 0, 0, 100)}%"></div><i style="width:${100 - (mxs == null ? 100 : mxs)}%"></i></div></div></div>`;
+  const mine = lobby.players.find(p => p.id === ME.id) || { n: SAVE.name || T('char' + SAVE.ch), c: SAVE.ch };
+  let h = row(mine.n, mine.c, ME.sta, mx, ME.ko, true, Math.round(ME.sta) + '%');
+  for (const o of OTH.values()) { const dd = Math.round(Math.hypot(o.x - ME.x, o.y - ME.y, o.z - ME.z)), up = o.y - ME.y; h += row(o.n, o.c, o.s, o.mx, o.k, false, dd + ' m' + (up > 3 ? ' ▲' : up < -3 ? ' ▼' : '')); }
   $('mates').innerHTML = h;
   $('koBox').style.display = ME.ko ? 'block' : 'none'; if (ME.ko) $('koBox').textContent = T('t_ko_wait') + (ME.koT > 8 || !OTH.size ? '  [R] ' + T('t_respawn') : '  ' + Math.ceil(8 - ME.koT) + ' s');
   $('board').style.display = ME.mode === 'plat' && WS && !WS.totems.open ? 'block' : 'none';
   if (ME.mode === 'plat' && WS) $('boardSyms').textContent = WS.totems.order.map(i => SYMS[WS.totems.sym[i]]).join('  →  ');
-  if (has('compass')) { $('compass').style.display = 'block'; const deg = ((-CAM.yaw * 180 / Math.PI) % 360 + 360) % 360; $('compass').textContent = '🧭 ' + ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(((360 - deg) % 360) / 45) % 8] + '  ·  ' + T('c_peak') + ' ' + (Math.abs(Math.sin(CAM.yaw)) < .35 && Math.cos(CAM.yaw) > 0 ? '⬆' : (Math.sin(CAM.yaw) > 0 ? '⬅' : '➡')); } else $('compass').style.display = 'none';
   drawObjective();
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
