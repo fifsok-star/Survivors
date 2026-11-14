@@ -12,6 +12,7 @@ function hostLoop() {            // ticks from a worker so the world keeps runni
 function hostPulse() { const n = performance.now(), dt = Math.min(.25, (n - hostLast) / 1000); hostLast = n; if (Net.isHost && Host.started) hostTick(dt); }
 function hostBegin() {
   hostLoop();
+  genWorld(((Math.random() * 2147483000) | 0) + 2);            // a brand new island every game
   Host.W = newWorld(Host.roster.size); Host.started = true; Host.dirty = false;
   const m = { t: 'start', W: Host.W, idx: 0 }; let i = 0;
   for (const id of Host.roster.keys()) { m.idx = i++; if (id === Net.id) onStart(JSON.parse(JSON.stringify(m))); else Net.send(id, m); }

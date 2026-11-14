@@ -143,7 +143,7 @@ function buildTerrain() {
 const WATER_VS = `uniform float uT; varying vec3 vW; void main(){ vec3 p=position; vec4 w=modelMatrix*vec4(p,1.); w.y+=sin(w.x*.12+uT*1.1)*.16+cos(w.z*.1+uT*.9)*.14; vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`;
 const WATER_FS = `uniform float uT; uniform sampler2D uD; uniform vec3 uA; uniform vec3 uB; uniform vec3 uFog; uniform float uFogD; uniform vec2 uFlow; uniform float uUseD; varying vec3 vW;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);} float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
-void main(){ vec2 uv=(vW.xz-vec2(-150.,-100.))/vec2(300.,760.); float d=1.; if(uUseD>.5 && uv.x>0.&&uv.x<1.&&uv.y>0.&&uv.y<1.) d=texture2D(uD,uv).r;
+void main(){ vec2 uv=(vW.xz-vec2(-150.,-100.))/vec2(300.,790.); float d=1.; if(uUseD>.5 && uv.x>0.&&uv.x<1.&&uv.y>0.&&uv.y<1.) d=texture2D(uD,uv).r;
  vec2 q=vW.xz*.35+uFlow*uT; float w=n(q+uT*.25)+n(q*2.3-uT*.3)*.5; vec3 c=mix(uA,uB,smoothstep(.0,.75,d));
  float sp=smoothstep(1.02,1.12,w); c+=sp*.35; float foam=smoothstep(.16,.02,d+ (w-.7)*.07+sin(uT*1.5+vW.x*.3)*.02)*step(.5,uUseD); c=mix(c,vec3(1.),clamp(foam,0.,1.)*.85);
  float streak=smoothstep(.8,1.,n(vec2(vW.x*.9, vW.z*.15)+uFlow*uT*2.))*(1.-step(.5,uUseD)); c=mix(c,vec3(1.),streak*.5);
@@ -226,7 +226,7 @@ function nearStation(x, z, r) {
   return false;
 }
 function buildVegetation() {
-  const r = rng(4242), dens = [.45, .7, 1, 1.25][SET.quality] || 1;
+  const r = rng(4242 + SEED), dens = [.45, .7, 1, 1.25][SET.quality] || 1;
   const lists = {}; const put = (n, x, z, s, rad, tilt) => { (lists[n] = lists[n] || []).push([x, getH(x, z) - .08, z, r() * 6.28, s, tilt || 0]); if (COLR[n]) { const y = getH(x, z); addCol(x, z, COLR[n] * s, COLH[n] ? y + COLH[n] * s : y + 60); } };
   // beach palms
   for (let i = 0; i < 46 * dens; i++) { const x = -78 + r() * 156, z = -14 + r() * 58; if (getH(x, z) < 1.6 || nearStation(x, z, 7) || Math.abs(x) < 7 && z < 40) continue; put(r() < .5 ? 'palm_a' : 'palm_b', x, z, .8 + r() * .5, .35); }
@@ -365,7 +365,7 @@ function charThumb(ci) {
 
 // ---------------------------------------------------------------- ambient animals (local only)
 function buildAnimals() {
-  const r = rng(555), A = (kind, model, x, y, z, extra) => { const o = rig(model, false); o.position.set(x, y, z); worldG.add(o); GFX.animals.push(Object.assign({ kind, o, x, y, z, hx: x, hz: z, t: r() * 10, ry: r() * 6, P: o.userData.parts }, extra || {})); };
+  const r = rng(555 + SEED), A = (kind, model, x, y, z, extra) => { const o = rig(model, false); o.position.set(x, y, z); worldG.add(o); GFX.animals.push(Object.assign({ kind, o, x, y, z, hx: x, hz: z, t: r() * 10, ry: r() * 6, P: o.userData.parts }, extra || {})); };
   for (let i = 0; i < 12; i++) { const x = -60 + r() * 120, z = -30 + r() * 26; if (getH(x, z) > .3) A('crab', 'crab', x, getH(x, z), z); }
   for (let i = 0; i < 4; i++) { const x = -50 + r() * 100, z = -34 + r() * 14; if (getH(x, z) > .2) A('turtle', 'turtle', x, getH(x, z), z); }
   for (let i = 0; i < 9; i++) A('gull', 'gull', 0, 0, 0, { cx: -60 + r() * 120, cz: -50 + r() * 70, rad: 14 + r() * 22, h: 16 + r() * 16, sp: .25 + r() * .25 });
@@ -406,4 +406,16 @@ function updateAnimals(dt, players) {
   if (!GFX.fireLight) { GFX.fireLight = new THREE.PointLight(0xff8a3a, 1.2, 18, 2); scene.add(GFX.fireLight); }
   let bf = null, bd = 1e9; for (const f of GFX.fires) { const d = f.position.distanceToSquared(camera.position); if (d < bd) { bd = d; bf = f; } }
   if (bf) { GFX.fireLight.position.set(bf.position.x, bf.position.y + .8, bf.position.z); GFX.fireLight.intensity = bd < 3600 ? 1.2 + Math.sin(GFX.t * 20) * .3 : 0; }
+}
+
+// ---------------------------------------------------------------- rebuilding the island for a new seed
+let waterTex = null;
+function clearWorld() {
+  for (const c of worldG.children.slice()) { worldG.remove(c); if (c.isInstancedMesh) c.dispose(); }
+  if (terrainMesh) { terrainMesh.geometry.dispose(); terrainMesh = null; }
+  GFX.colGrid.clear(); GFX.chunks.length = 0; GFX.animals.length = 0; GFX.fires.length = 0; streamMats.length = 0;
+}
+function buildWorldScene() {
+  clearWorld(); MOODS[3].z = Z_MAX - 25;
+  buildTerrain(); buildWater(); buildProps(); buildDynamic(); buildVegetation(); buildAnimals();
 }

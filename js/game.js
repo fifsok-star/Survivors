@@ -62,8 +62,9 @@ function dropItem(arr, i) { const t = arr[i]; if (!t) return; arr[i] = null; act
 function toggleInv(v) { invOpen = v == null ? !invOpen : v; invSel = null; $('pack').style.display = invOpen ? 'block' : 'none'; if (invOpen) document.exitPointerLock(); drawInv(); }
 
 // ---------------------------------------------------------------- world state -> scene
-const OBJ = { items: new Map(), logs: [], totems: [], plates: [], levers: [], chests: {}, ropes: [], pitons: [], flares: [], x: [], gate: null, tree: null, heli: null };
+const OBJ = {};
 function buildDynamic() {
+  Object.assign(OBJ, { items: new Map(), logs: [], totems: [], plates: [], levers: [], chests: {}, ropes: [], pitons: [], flares: [], x: [], gate: null, tree: null, heli: null });
   OBJ.gate = prop('gate', L.gate.x, L.gate.y - .4, L.gate.z, 0, 1.6); worldG.add(OBJ.gate);
   OBJ.tree = prop('fallen_tree', L.tree.x, L.tree.y - .3, L.tree.z, 0, 1.5); worldG.add(OBJ.tree);
   OBJ.sawBar = labelSprite('', '#fff'); OBJ.sawBar.position.set(L.tree.x, L.tree.y + 4, L.tree.z); worldG.add(OBJ.sawBar); OBJ.sawBar.visible = false;
@@ -84,7 +85,7 @@ function buildDynamic() {
   L.stakes.forEach((s, i) => {
     const g = new THREE.Group(), mat = new THREE.MeshLambertMaterial({ color: 0xd8b56a });
     if (s.wall != null) { for (let z = s.baseZ; z < s.z; z += 1.2) { const a = new THREE.Vector3(s.x, getH(s.x, z) + .25, z), b = new THREE.Vector3(s.x, getH(s.x, Math.min(z + 1.2, s.z)) + .25, Math.min(z + 1.2, s.z)); const m = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, a.distanceTo(b) + .05, 5), mat); m.position.copy(a).lerp(b, .5); m.lookAt(b); m.rotateX(Math.PI / 2); g.add(m); } }
-    else { const p = L.pits[s.pit], n = 9; for (let k = 0; k < n; k++) { const t0 = k / n, t1 = (k + 1) / n, f = t => new THREE.Vector3(lerp(s.x, p.x + p.r - .6, Math.min(1, t * 2.5)), lerp(s.y + .6, p.y + .2, sstep(.25, 1, t)), s.z); const a = f(t0), b = f(t1); const m = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, a.distanceTo(b) + .05, 5), mat); m.position.copy(a).lerp(b, .5); m.lookAt(b); m.rotateX(Math.PI / 2); g.add(m); } }
+    else { const p = L.pits[s.pit], n = 9; for (let k = 0; k < n; k++) { const t0 = k / n, t1 = (k + 1) / n, f = t => new THREE.Vector3(lerp(s.x, p.x + Math.sign(s.x - p.x) * (p.r - .6), Math.min(1, t * 2.5)), lerp(s.y + .6, p.y + .2, sstep(.25, 1, t)), s.z); const a = f(t0), b = f(t1); const m = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, a.distanceTo(b) + .05, 5), mat); m.position.copy(a).lerp(b, .5); m.lookAt(b); m.rotateX(Math.PI / 2); g.add(m); } }
     g.visible = false; worldG.add(g); OBJ.ropes.push(g);
   });
   L.logs.forEach(() => { const m = new THREE.Mesh(baked('log'), vcMat); m.castShadow = true; worldG.add(m); OBJ.logs.push(m); });
@@ -291,12 +292,12 @@ function findInteract() {
       if (!W.ropes[i]) C(d, has('rope') ? { label: T('i_rope'), hold: 1.2, anim: 'saw', go: () => { if (takeItem('rope')) { drawInv(); act({ k: 'rope', s: i }); } } } : { label: T('i_need_rope'), go: () => hint('i_need_rope') });
       else {
         const stuck = s.pit != null && teammates().find(t => inPit(t.o.x, t.o.y, t.o.z) === s.pit);
-        if (stuck) C(d - 1, { label: T('i_haul') + ' ' + stuck.o.n, hold: 1.4, anim: 'pull', go: () => { ME.sta = Math.max(0, ME.sta - 15); act({ k: 'haul', to: stuck.id, x: s.x + 1.2, z: s.z, y: s.y }); } });
+        if (stuck) C(d - 1, { label: T('i_haul') + ' ' + stuck.o.n, hold: 1.4, anim: 'pull', go: () => { ME.sta = Math.max(0, ME.sta - 15); act({ k: 'haul', to: stuck.id, x: s.x + Math.sign(s.x - L.pits[s.pit].x) * 1.2, z: s.z, y: s.y }); } });
         else C(d, { label: T('i_unrope'), hold: 1, go: () => { if (invFull()) return hint('t_full'); act({ k: 'unrope', s: i }); } });
       }
     }
   });
-  { const pi = inPit(me.x, me.y, me.z); if (pi >= 0 && !me.steep) { if (W.ropes[pi]) C(0, { label: T('i_ropeup'), hold: 1.6, anim: 'climb', go: () => { if (me.sta < 30) return hint('t_tired'); me.sta -= 30; const s = L.stakes[pi]; me.x = s.x + 1.2; me.z = s.z; me.y = getH(me.x, me.z); } }); else C(3, { label: T('i_pit_stuck'), go: () => hint('h_pit') }); } }
+  { const pi = inPit(me.x, me.y, me.z); if (pi >= 0 && !me.steep) { if (W.ropes[pi]) C(0, { label: T('i_ropeup'), hold: 1.6, anim: 'climb', go: () => { if (me.sta < 30) return hint('t_tired'); me.sta -= 30; const s = L.stakes[pi]; me.x = s.x + Math.sign(s.x - L.pits[pi].x) * 1.2; me.z = s.z; me.y = getH(me.x, me.z); } }); else C(3, { label: T('i_pit_stuck'), go: () => hint('h_pit') }); } }
   { const d = D(L.tablet); if (d < 3.2) C(d, { label: T('i_tablet') + '  ' + W.levers.target.map(v => v ? '↓' : '↑').join(' '), go: () => hint('h_tablet') }); }
   { const d = D(L.radio); if (d < 4.5 && !W.radio.t) C(d, { label: T('i_radio'), hold: 3.5, anim: 'saw', go: () => act({ k: 'radio' }) }); }
   for (const { id, o } of teammates()) {
@@ -369,9 +370,10 @@ function menuCamera(t) { const a = t * .06, r = 26; camera.position.set(L.plane.
 
 // ---------------------------------------------------------------- HUD
 function drawObjective() {
-  const W = WS; if (!W) return; let k = 'o_climb';
-  if (W.radio.t) k = 'o_heli'; else if (ME.z > L.radio.z - 22 && ME.y > 235) k = 'o_radio'; else if (ME.z > JUNGLE_END - 30) k = 'o_climb';
-  else if (!W.bridges[0].done) k = ME.z < 40 ? 'o_wreck' : 'o_bridge1'; else if (!W.totems.open) k = 'o_gate'; else if (!W.saw.done) k = 'o_tree'; else if (!W.bridges[1].done) k = 'o_bridge2'; else k = 'o_camp';
+  const W = WS; if (!W) return; let k = 'o_camp';
+  const obs = [{ z: STREAMS[0].z, k: 'o_bridge1', d: W.bridges[0].done }, { z: GATE_Z, k: 'o_gate', d: W.totems.open }, { z: TREE_Z, k: 'o_tree', d: W.saw.done }, { z: STREAMS[1].z, k: 'o_bridge2', d: W.bridges[1].done }].sort((a, b) => a.z - b.z), nx = obs.find(o => !o.d);
+  if (W.radio.t) k = 'o_heli'; else if (ME.z > L.radio.z - 22 && ME.y > L.radio.y - 8) k = 'o_radio'; else if (ME.z > JUNGLE_END - 30) k = 'o_climb';
+  else if (nx) k = ME.z < 40 && nx === obs[0] ? 'o_wreck' : nx.k;
   $('objective').textContent = T(k);
 }
 let hudAcc = 0, stepAcc = 0, fpsN = 0, fpsT = 0, cmpEls = null;
@@ -427,6 +429,8 @@ function frame(now) {
   if (SET.fps) { fpsN++; fpsT += dt; if (fpsT > .5) { $('fps').textContent = Math.round(fpsN / fpsT) + ' FPS'; fpsN = 0; fpsT = 0; } }
 }
 function onStart(m) {
+  if (m.W.seed !== SEED || !OBJ.gate) genWorld(m.W.seed);
+  buildWorldScene(); WS = null;
   myIdx = m.idx; ME.id = Net.id; OTH.forEach(o => scene.remove(o.g)); OTH.clear();
   Object.assign(ME, { sta: 100, inj: 0, hun: 0, ko: false, air: false, slide: false, mode: '', quick: [null, null, null], pack: [null, null, null, null, null, null], sel: 0, boost: 0, falls: 0 });
   if (ME.g) scene.remove(ME.g); ME.g = makeChar(SAVE.ch); scene.add(ME.g);

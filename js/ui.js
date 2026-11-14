@@ -91,8 +91,7 @@ async function boot() {
   try {
     initRenderer($('game')); bar(.1);
     await loadModels('assets/models.glb', p => bar(.1 + p * .4)); bar(.5); await tick();
-    buildTerrain(); bar(.62); await tick(); buildWater(); buildSky(); bar(.7); await tick();
-    buildProps(); buildDynamic(); bar(.78); await tick(); buildVegetation(); bar(.92); await tick(); buildAnimals();
+    buildSky(); bar(.6); await tick(); buildWorldScene(); bar(.92); await tick();
     for (let i = 0; i < 6; i++) ui.thumbs.push(charThumb(i));
     applyGfxSettings(); bindSettings(); bindInput(); charGrid($('charsMenu')); charGrid($('charsLobby')); drawInv();
     phase = 'menu'; ui.show('menu'); requestAnimationFrame(frame);
