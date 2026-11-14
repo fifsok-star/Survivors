@@ -146,7 +146,8 @@ function constrain(pz, n) {
     if (!WS.saw.done && pz <= TREE_Z - 1.6 && n.z > TREE_Z - 1.6) n.z = TREE_Z - 1.6;
     if (!WS.saw.done && pz >= TREE_Z + 1.6 && n.z < TREE_Z + 1.6) n.z = TREE_Z + 1.6;
   }
-  collide(n, .38);
+  collide(n, .4, ME.y);
+  for (const o of OTH.values()) { if (Math.abs(o.y - ME.y) > 1.3 || o.k) continue; const dx = n.x - o.x, dz = n.z - o.z, d = Math.hypot(dx, dz); if (d < .62 && d > 1e-3) { n.x = o.x + dx / d * .62; n.z = o.z + dz / d * .62; } }
 }
 function ropeNear(x, z) { if (!WS) return false; for (let i = 2; i < L.stakes.length; i++) { const s = L.stakes[i]; if (WS.ropes[i] && Math.abs(x - s.x) < 1.7 && z > s.baseZ - 2 && z < s.z + 1) return true; } return false; }
 function pitonNear(x, y, z) { if (!WS) return false; for (const p of WS.pitons) if (Math.abs(p.x - x) < 1.4 && Math.abs(p.z - z) < 1.4 && Math.abs(p.y - y) < 1.8) return true; return false; }
@@ -156,7 +157,7 @@ function hurt(eff) {
   ME.inj = Math.min(95, ME.inj + (eff - 4) * 3.2);
   if (eff > 24 || maxSta() <= 5) knockOut();
 }
-function knockOut() { if (ME.ko) return; ME.ko = true; ME.koT = 0; ME.sta = 0; ME.mode = ''; toast(T('t_ko'), 'bad'); }
+function knockOut() { if (ME.ko) return; ME.ko = true; ME.koT = 0; ME.sta = 0; ME.mode = ''; if (!ME.drownT && getH(ME.x, ME.z) > -1) toast(T('t_ko'), 'bad'); }
 function respawn() { const c = L.camps[WS ? WS.cp : 0]; ME.x = c.x + 2 + myIdx * .7; ME.z = c.z - 2; ME.y = getH(ME.x, ME.z); ME.ko = false; ME.air = false; ME.slide = false; ME.mode = ''; ME.inj = Math.min(ME.inj, 45); ME.hun = Math.min(ME.hun, 30); ME.sta = maxSta(); ME.vx = ME.vy = ME.vz = 0; }
 
 // ---------------------------------------------------------------- my movement
@@ -184,7 +185,7 @@ function updateMe(dt) {
   if (me.mode === 'plat') {
     const t = L.lookout; me.x += wx * 3 * dt; me.z += wz * 3 * dt; const d = dist2(me.x, me.z, t.x, t.z);
     if (d > 2.25) { me.x = t.x + (me.x - t.x) / d * 2.25; me.z = t.z + (me.z - t.z) / d * 2.25; } if (d < .95) { me.x = t.x + (me.x - t.x) / (d || 1) * .95; me.z = t.z + (me.z - t.z) / (d || 1) * .95; }
-    me.y = t.y + 13.85; if (moving) me.ry = Math.atan2(wx, wz); me.anim = moving ? 'walk' : 'idle'; me.sta = Math.min(mx, me.sta + (moving ? 3 : 16) * dt); return;
+    me.y = t.y + 13.85; if (moving) me.ry = Math.atan2(wx, wz); me.anim = moving ? 'walk' : 'idle'; me.sta = Math.min(mx, me.sta + (moving ? 0 : 6.5) * dt); return;
   }
   const prevZ = me.z, n = { x: me.x, z: me.z };
   if (me.air) {
@@ -198,14 +199,14 @@ function updateMe(dt) {
   if (me.slide && (!steep || (me.sta > 12 && pitonNear(me.x, me.y, me.z)))) { me.slide = false; hurt((me.slideTop - me.y) * .55); }
   if (steep && (me.sta <= 0 || me.slide)) {                     // out of stamina: slide down
     if (!me.slide) { me.slide = true; me.slideTop = me.y; toast(T('t_slip'), 'bad'); }
-    const v = 9; n.x -= sl.gx * v * dt; n.z -= sl.gz * v * dt; constrain(prevZ, n); me.x = n.x; me.z = n.z; me.y = groundAt(me.x, me.z); me.anim = 'slide'; me.ry = Math.atan2(sl.gx, sl.gz); me.sta = Math.min(mx, me.sta + 4 * dt);
+    const v = 9; n.x -= sl.gx * v * dt; n.z -= sl.gz * v * dt; constrain(prevZ, n); me.x = n.x; me.z = n.z; me.y = groundAt(me.x, me.z); me.anim = 'slide'; me.ry = Math.atan2(sl.gx, sl.gz); me.sta = Math.min(mx, me.sta + 1.5 * dt);
     return;
   }
   if (steep) {                                                  // climbing
     const rope = ropeNear(me.x, me.z), pit = inPit(me.x, me.y, me.z) >= 0, pin = pitonNear(me.x, me.y, me.z);
     const along = Math.abs(wx * sl.gx + wz * sl.gz), sp = 2.0 * (rope ? 1.5 : 1) * lerp(1, Math.cos(sl.ang) * 1.15, along);
     if (moving) { n.x += wx * sp * dt; n.z += wz * sp * dt; drain(5.2 * (rope ? .32 : 1) * (pit ? 9 : 1) * (wx * sl.gx + wz * sl.gz < -.3 ? .4 : 1)); }
-    else if (pin || rope) me.sta = Math.min(mx, me.sta + 9 * dt); else drain(1.1);
+    else if (pin || rope) me.sta = Math.min(mx, me.sta + 4.5 * dt); else drain(1.1);
     constrain(prevZ, n); me.x = n.x; me.z = n.z; me.y = groundAt(me.x, me.z); me.anim = 'climb'; me.ry = Math.atan2(sl.gx, sl.gz);
     if (KEY.Space && !KEY._jl) { KEY._jl = true; me.air = true; me.peak = me.y; me.vy = 4.5; me.vx = -sl.gx * 3.5 + wx * 2; me.vz = -sl.gz * 3.5 + wz * 2; drain(0); me.sta -= 6; }
     return;
@@ -218,8 +219,16 @@ function updateMe(dt) {
   constrain(prevZ, n);
   const ns = slopeAt(n.x, n.z);
   me.x = n.x; me.z = n.z; me.y = Math.max(groundAt(me.x, me.z), swim ? -1.15 : -99);
-  if (swim) { drain(moving ? 7 : 3); me.anim = 'swim'; if (me.sta <= 0) { toast(T('t_drown'), 'bad'); me.inj = Math.min(90, me.inj + 12); respawn(); } return; }
-  if (sprint) drain(8.5); else if (carry) drain(moving ? 3.2 : .6); else if (!moving) me.sta += 17 * dt; else me.sta += 2.6 * dt;
+  if (swim) {                                                   // deep water: tire quickly, then sink and drown
+    drain(moving ? 11 : 6); me.anim = 'swim'; me.sta = Math.max(0, me.sta);
+    if (me.sta <= 0) {
+      if (!me.drownT) { toast(T('t_sinking'), 'bad'); sfx('hurt'); } me.drownT = (me.drownT || 0) + dt; me.y = -1.15 - me.drownT * .55; $('vign').classList.add('water');
+      if (me.drownT > 3.2) { $('vign').classList.remove('water'); me.inj = Math.min(90, me.inj + 15); knockOut(); me.drownT = 0; me.koT = 8; toast(T('t_drown'), 'bad'); }
+    } else if (me.drownT) { me.drownT = 0; $('vign').classList.remove('water'); }
+    return;
+  }
+  if (me.drownT) { me.drownT = 0; $('vign').classList.remove('water'); }
+  if (sprint) drain(8.5); else if (carry) drain(moving ? 3.2 : .6); else if (!moving) me.sta += 6.5 * dt;
   me.sta = clamp(me.sta, 0, mx);
   me.anim = carry || holding ? 'carry' : moving ? (sprint ? 'run' : 'walk') : 'idle';
   if (KEY.Space && !KEY._jl && me.sta > 5 && !holding) { KEY._jl = true; me.air = true; me.peak = me.y; me.vy = 7.2; me.vx = wx * sp; me.vz = wz * sp; me.sta -= 5; }
@@ -230,7 +239,7 @@ function updateMe(dt) {
     else if (Math.abs(dz) < s.w / 2 - 1 && !brd && me.y < L.bridges[i].level + .1) { me.washT += dt; if (me.washT > .45) { me.washT = 0; me.z = s.z + me.side[i] * (s.w / 2 + 3); me.x += 3; me.y = groundAt(me.x, me.z); me.sta = Math.max(0, me.sta - 22); toast(T('t_wash'), 'bad'); sfx('hurt'); } }
   }
   // campfire rest
-  if (!moving) for (const c of L.camps) if (dist2(me.x, me.z, c.x, c.z) < 4.5 && Math.abs(me.y - c.y) < 3) { me.inj = Math.max(0, me.inj - dt * 2.2); me.sit = true; me.anim = 'sit'; }
+  if (!moving) for (const c of L.camps) if (dist2(me.x, me.z, c.x, c.z) < 4.5 && Math.abs(me.y - c.y) < 3) { me.inj = Math.max(0, me.inj - dt * 2.2); me.sta = Math.min(maxSta(), me.sta + 6 * dt); me.sit = true; me.anim = 'sit'; }
 }
 function myState() { const h = ME.quick[ME.sel]; return { i: ME.id, x: +ME.x.toFixed(2), y: +ME.y.toFixed(2), z: +ME.z.toFixed(2), r: +ME.ry.toFixed(2), a: ME.anim, m: ME.moving ? 1 : 0, s: Math.round(ME.sta), mx: Math.round(maxSta()), k: ME.ko ? 1 : 0, h: h || '', f: (ME.sawing ? 1 : 0) | (has('saw') ? 2 : 0) }; }
 function onStates(m) {
@@ -351,7 +360,7 @@ const _v = new THREE.Vector3();
 function updateCamera(dt) {
   const me = ME, ty = me.y + 1.55, cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch), fx = Math.sin(CAM.yaw), fz = Math.cos(CAM.yaw);
   let d = CAM.dist;
-  for (let k = 1; k <= 8; k++) { const t = k / 8 * CAM.dist, x = me.x - fx * cp * t, z = me.z - fz * cp * t, y = ty + sp * t; if (y < getH(x, z) + .35) { d = Math.max(.9, (k - 1) / 8 * CAM.dist); break; } }
+  for (let k = 1; k <= 14; k++) { const t = k / 14 * CAM.dist, x = me.x - fx * cp * t, z = me.z - fz * cp * t, y = ty + sp * t; if (y < getH(x, z) + .35 || (t > .7 && insideCol(x, y, z, .28))) { d = Math.max(.8, (k - 1) / 14 * CAM.dist - .15); break; } }
   CAM.cd = CAM.cd == null ? d : CAM.cd + (d - CAM.cd) * Math.min(1, dt * (d < CAM.cd ? 20 : 4));
   const x = me.x - fx * cp * CAM.cd, z = me.z - fz * cp * CAM.cd; let y = ty + sp * CAM.cd; y = Math.max(y, getH(x, z) + .4, .35);
   camera.position.set(x, y, z); camera.lookAt(me.x + fx * 1.2, ty + .15, me.z + fz * 1.2);

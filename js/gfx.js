@@ -87,14 +87,25 @@ function prop(name, x, y, z, ry, s, dbl) {
   m.position.set(x, y, z); m.rotation.y = ry || 0; if (s) m.scale.setScalar(s);
   m.castShadow = true; m.receiveShadow = true; return m;
 }
-function addCol(x, z, r) { const k = ((x / 8) | 0) + ',' + ((z / 8) | 0); let a = GFX.colGrid.get(k); if (!a) GFX.colGrid.set(k, a = []); a.push([x, z, r]); }
-function collide(p, rad) {                      // push a point out of nearby cylinders
-  const cx = (p.x / 8) | 0, cz = (p.z / 8) | 0;
+// colliders: upright cylinders [x, z, radius, top y] in a spatial grid
+function addCol(x, z, r, top) { const k = Math.floor(x / 8) + ',' + Math.floor(z / 8); let a = GFX.colGrid.get(k); if (!a) GFX.colGrid.set(k, a = []); a.push([x, z, r, top == null ? 1e9 : top]); }
+function collide(p, rad, y) {                   // push a point out of nearby cylinders
+  const cx = Math.floor(p.x / 8), cz = Math.floor(p.z / 8);
   for (let i = cx - 1; i <= cx + 1; i++) for (let j = cz - 1; j <= cz + 1; j++) {
     const a = GFX.colGrid.get(i + ',' + j); if (!a) continue;
-    for (const c of a) { const dx = p.x - c[0], dz = p.z - c[1], d = Math.hypot(dx, dz), m = c[2] + rad; if (d < m && d > 1e-4) { p.x = c[0] + dx / d * m; p.z = c[1] + dz / d * m; } }
+    for (const c of a) { if (y != null && y > c[3] - .15) continue; const dx = p.x - c[0], dz = p.z - c[1], d = Math.hypot(dx, dz), m = c[2] + rad; if (d < m) { if (d < 1e-4) { p.x += m; continue; } p.x = c[0] + dx / d * m; p.z = c[1] + dz / d * m; } }
   }
 }
+function insideCol(x, y, z, pad) {
+  const cx = Math.floor(x / 8), cz = Math.floor(z / 8);
+  for (let i = cx - 1; i <= cx + 1; i++) for (let j = cz - 1; j <= cz + 1; j++) {
+    const a = GFX.colGrid.get(i + ',' + j); if (!a) continue;
+    for (const c of a) if (y < c[3] + pad && Math.hypot(x - c[0], z - c[1]) < c[2] + pad) return true;
+  }
+  return false;
+}
+const COLR = { palm_a: .34, palm_b: .34, jtree_a: .64, jtree_b: .6, jtree_c: .5, rock_a: 1.1, rock_b: 1.2, rock_c: 1.0, rock_moss: 1.3, bush: .8, banana_plant: .22, stump: .64, pine: .42, deadtree: .32 };
+const COLH = { rock_a: 1.5, rock_b: 1.3, rock_c: 2.2, rock_moss: 1.5, bush: 1.15, stump: .75 };
 
 // ---------------------------------------------------------------- terrain
 function terrainColor(x, z, h, out) {
@@ -216,7 +227,7 @@ function nearStation(x, z, r) {
 }
 function buildVegetation() {
   const r = rng(4242), dens = [.45, .7, 1, 1.25][SET.quality] || 1;
-  const lists = {}; const put = (n, x, z, s, rad, tilt) => { (lists[n] = lists[n] || []).push([x, getH(x, z) - .08, z, r() * 6.28, s, tilt || 0]); if (rad) addCol(x, z, rad * s); };
+  const lists = {}; const put = (n, x, z, s, rad, tilt) => { (lists[n] = lists[n] || []).push([x, getH(x, z) - .08, z, r() * 6.28, s, tilt || 0]); if (COLR[n]) { const y = getH(x, z); addCol(x, z, COLR[n] * s, COLH[n] ? y + COLH[n] * s : y + 60); } };
   // beach palms
   for (let i = 0; i < 46 * dens; i++) { const x = -78 + r() * 156, z = -14 + r() * 58; if (getH(x, z) < 1.6 || nearStation(x, z, 7) || Math.abs(x) < 7 && z < 40) continue; put(r() < .5 ? 'palm_a' : 'palm_b', x, z, .8 + r() * .5, .35); }
   for (let i = 0; i < 60 * dens; i++) { const x = -80 + r() * 160, z = -40 + r() * 80; if (getH(x, z) < .3 || nearStation(x, z, 4)) continue; put(['rock_a', 'rock_b', 'rock_c'][i % 3], x, z, .3 + r() * .7, r() < .3 ? .9 : 0); }
@@ -254,21 +265,21 @@ function buildVegetation() {
 function buildProps() {
   const add = (m) => { worldG.add(m); return m; };
   const pf = add(prop('plane_front', L.plane.x, L.plane.y - .45, L.plane.z, 2.5, 1, true)); pf.rotation.z = .1;
-  for (let k = -3; k <= 3; k++) { addCol(L.plane.x + Math.sin(2.5) * k * 1.9, L.plane.z + Math.cos(2.5) * k * 1.9, 1.75); }
-  add(prop('plane_tail', L.tail.x, L.tail.y - .5, L.tail.z, .9, 1, true)).rotation.z = -.25; addCol(L.tail.x, L.tail.z, 2.3);
-  add(prop('plane_wing', L.wing.x, L.wing.y + .1, L.wing.z, 1.2, 1)).rotation.z = .12; addCol(L.wing.x, L.wing.z, 1.6);
+  for (let k = -3; k <= 3.2; k += .5) { addCol(L.plane.x + Math.sin(2.5) * k * 1.9, L.plane.z + Math.cos(2.5) * k * 1.9, 1.8, L.plane.y + 4); }
+  add(prop('plane_tail', L.tail.x, L.tail.y - .5, L.tail.z, .9, 1, true)).rotation.z = -.25; for (let k = -1.5; k <= 1.6; k += .5) addCol(L.tail.x + Math.sin(.9) * k * 1.8, L.tail.z + Math.cos(.9) * k * 1.8, 1.7 - Math.max(0, k) * .4, L.tail.y + 5);
+  add(prop('plane_wing', L.wing.x, L.wing.y + .1, L.wing.z, 1.2, 1)).rotation.z = .12; for (let k = -3.5; k <= 3.6; k += 1) addCol(L.wing.x + Math.cos(1.2) * k, L.wing.z - Math.sin(1.2) * k, 1.35, L.wing.y + 1.3);
   const r = rng(9);
-  for (let i = 0; i < 5; i++) { const x = -10 + r() * 22, z = -8 + r() * 20; if (dist2(x, z, L.plane.x, L.plane.z) < 4) continue; add(prop(i % 2 ? 'seat' : 'suitcase', x, getH(x, z), z, r() * 6, 1)).rotation.z = i % 2 ? 1.2 : 0; }
-  L.camps.forEach((c, i) => { add(prop('campfire', c.x, c.y, c.z, i, 1)); addFire(c.x, c.y + .3, c.z); if (i) add(prop('tent', c.x + 3.4, getH(c.x + 3.4, c.z + 1.5), c.z + 1.5, -1 + i, 1)); add(prop('log', c.x - 1.8, getH(c.x - 1.8, c.z) + .25, c.z + .6, 1.2, 1)).scale.set(1.8, 1, 1); });
-  add(prop('lookout', L.lookout.x, L.lookout.y - .2, L.lookout.z, 0, 1)); addCol(L.lookout.x, L.lookout.z, 1.1);
+  for (let i = 0; i < 5; i++) { const x = -10 + r() * 22, z = -8 + r() * 20; if (dist2(x, z, L.plane.x, L.plane.z) < 4) continue; add(prop(i % 2 ? 'seat' : 'suitcase', x, getH(x, z), z, r() * 6, 1)).rotation.z = i % 2 ? 1.2 : 0; addCol(x, z, .5, getH(x, z) + .9); }
+  L.camps.forEach((c, i) => { add(prop('campfire', c.x, c.y, c.z, i, 1)); addFire(c.x, c.y + .3, c.z); addCol(c.x, c.z, .7, c.y + .8); addCol(c.x - 1.8, c.z + .6, .55, c.y + .7); if (i) { add(prop('tent', c.x + 3.4, getH(c.x + 3.4, c.z + 1.5), c.z + 1.5, -1 + i, 1)); addCol(c.x + 3.4, c.z + 1.5, 1.45, c.y + 2); } add(prop('log', c.x - 1.8, getH(c.x - 1.8, c.z) + .25, c.z + .6, 1.2, 1)).scale.set(1.8, 1, 1); });
+  add(prop('lookout', L.lookout.x, L.lookout.y - .2, L.lookout.z, 0, 1)); addCol(L.lookout.x, L.lookout.z, 1.15, L.lookout.y + 30);
   add(prop('sign', L.lookout.x - 3, getH(L.lookout.x - 3, L.lookout.z - 2), L.lookout.z - 2, .6, 1));
-  for (const s of [-1, 1]) add(prop('pillar', L.gate.x + s * 4.4, L.gate.y - .3, L.gate.z, 0, 1.25));
+  for (const s of [-1, 1]) { add(prop('pillar', L.gate.x + s * 4.9, L.gate.y - .3, L.gate.z, 0, 1.25)); addCol(L.gate.x + s * 4.9, L.gate.z, 1.1, L.gate.y + 8); }
   L.plates.forEach(p => add(prop('plate', p.x, p.y - .02, p.z, 0, 1)));
-  L.levers.forEach(p => add(prop('lever_base', p.x, p.y, p.z, 0, 1)));
-  L.stakes.forEach(p => add(prop('stake', p.x, p.y, p.z, 0, 1.2)));
-  add(prop('antenna', L.radio.x, L.radio.y - .1, L.radio.z, -.4, 1.2)); addCol(L.radio.x, L.radio.z, 1);
+  L.levers.forEach(p => { add(prop('lever_base', p.x, p.y, p.z, 0, 1)); addCol(p.x, p.z, .42, p.y + 1.2); });
+  L.stakes.forEach(p => { add(prop('stake', p.x, p.y, p.z, 0, 1.2)); addCol(p.x, p.z, .18, p.y + 1.1); });
+  add(prop('antenna', L.radio.x, L.radio.y - .1, L.radio.z, -.4, 1.2)); addCol(L.radio.x, L.radio.z, 1.05, L.radio.y + 12); addCol(L.radio.x + 1.75, L.radio.z + .75, 1.0, L.radio.y + 1.6);
   // stone tablet with the lever clue
-  const tb = add(prop('pillar', L.tablet.x, L.tablet.y - .2, L.tablet.z, .5, .32));
+  add(prop('pillar', L.tablet.x, L.tablet.y - .2, L.tablet.z, .5, .32)); addCol(L.tablet.x, L.tablet.z, .4, L.tablet.y + 1.8);
   add(prop('sign', L.plane.x + 9, getH(L.plane.x + 9, 36), 36, -1.57, 1.2));
 }
 function addFire(x, y, z) {
