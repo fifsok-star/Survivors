@@ -263,11 +263,11 @@ function newWorld(nPlayers) {
   const LOOT = { '-1': ['banana', 'coconut', 'can', 'rope', 'medkit', 'flare', 'compass', 'drink'], 0: ['piton', 'rope', 'can', 'drink', 'medkit', 'banana'], 1: ['medkit', 'medkit', 'banana', 'piton', 'rope', 'can'], 2: ['drink', 'drink', 'coconut', 'piton', 'medkit', 'can'], 3: ['tea', 'tea', 'flare', 'can', 'piton', 'rope'], 4: ['tea', 'piton', 'piton', 'rope', 'can', 'drink'], 5: ['drink', 'medkit', 'piton', 'rope', 'tea', 'can'] };
   W.skel = L.skels.map(() => ({ on: r() < .7 ? 1 : 0, hp: SK_HP, dead: 0 })); if (W.skel.filter(s => s.on).length < 3) W.skel.forEach((s, i) => { if (i % 2 === 0) s.on = 1; });
   W.bags = L.bags.map(b => { const pool = LOOT[b.b], n = 2 + (r() < .45 ? 1 : 0), loot = []; for (let k = 0; k < n; k++) loot.push(pool[(r() * pool.length) | 0]); return { loot }; });
-  W.logs = L.logs.map((g, i) => ({ id: i, x: g.x, z: g.z, ry: r() * 3, len: g.len, need: Math.min(g.need, Math.max(1, nPlayers)), car: [], br: -1, slot: 0 }));
+  W.logs = L.logs.map((g, i) => ({ id: i, x: g.x, z: g.z, ry: r() * 3, len: g.len, need: Math.max(2, Math.min(g.need, nPlayers)), car: [], br: -1, slot: 0 }));
   W.bridges = STREAMS.map(() => ({ logs: 0, rope: false, done: false }));
   const ord = [0, 1, 2, 3].sort(() => r() - .5), sym = [0, 1, 2, 3, 4, 5].sort(() => r() - .5).slice(0, 4);
   W.totems = { order: ord, sym, hit: [], open: false, bad: 0 };
-  W.plates = { n: clamp(nPlayers, 1, 3), on: [0, 0, 0], open: false };
+  W.plates = { n: clamp(nPlayers, 2, 3), on: [0, 0, 0], open: false };
   const tg = [0, 0, 0, 0].map(() => r() < .5 ? 1 : 0); if (tg.every(v => !v)) tg[1] = 1;
   W.levers = { st: [0, 0, 0, 0], target: tg, open: false };
   W.saw = { p: 0, done: false };

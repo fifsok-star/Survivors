@@ -354,7 +354,7 @@ function findInteract() {
   }
   L.digs.forEach((p, i) => { if (W.digs[i]) return; const d = D(p); if (d < 2.2) C(d, has('shovel') ? { label: T('i_dig'), hold: 2.6, anim: 'saw', go: () => act({ k: 'dig', i }) } : { label: T('i_need_shovel'), go: () => hint('i_need_shovel') }); });
   { const d = D(L.lookout); if (d < 3.6 && Math.abs(me.y - L.lookout.y) < 2) C(d, { label: T('i_tree'), go: () => { me.mode = 'tree'; me.treeH = .3; } }); }
-  if (!W.saw.done) { const d = Math.abs(me.z - L.tree.z) + Math.max(0, Math.abs(me.x - L.tree.x) - 5); if (d < 3.2) { const any = has('saw') || teammates().some(t => (t.o.f & 2) && dist2(t.o.x, t.o.z, L.tree.x, L.tree.z) < 9); C(d, any ? { label: T('i_saw') + ' ' + Math.round(W.saw.p * 100) + '%', hold: 999, anim: 'saw', sawing: true, go: () => { } } : { label: T('i_need_saw'), go: () => hint('h_saw') }); } }
+  if (!W.saw.done) { const d = Math.abs(me.z - L.tree.z) + Math.max(0, Math.abs(me.x - L.tree.x) - 5); if (d < 3.2) { const any = has('saw') || teammates().some(t => (t.o.f & 2) && dist2(t.o.x, t.o.z, L.tree.x, L.tree.z) < 9); C(d, any ? { label: T('i_saw') + ' ' + Math.round(W.saw.p * 100) + '%  👥 ' + Math.min(2, 1 + teammates().filter(t => (t.o.f & 1) && dist2(t.o.x, t.o.z, L.tree.x, L.tree.z) < 9).length) + '/2', hold: 999, anim: 'saw', sawing: true, go: () => { } } : { label: T('i_need_saw'), go: () => hint('h_saw') }); } }
   L.bridges.forEach((b, i) => { const bs = W.bridges[i], d = dist2(me.x, me.z, b.x, b.z - b.w / 2 - 2); if (!bs.done && d < 5) { if (bs.logs >= STREAMS[i].logs && STREAMS[i].rope && !bs.rope) C(2, has('rope') ? { label: T('i_lash'), hold: 2, anim: 'saw', go: () => { if (takeItem('rope')) { drawInv(); act({ k: 'lash', b: i }); } } } : { label: T('i_need_rope'), go: () => hint('i_need_rope') }); else if (bs.logs < STREAMS[i].logs) C(4.5, { label: T('i_bridge') + ' ' + bs.logs + '/' + STREAMS[i].logs, go: () => hint('h_bridge') }); } });
   L.stakes.forEach((s, i) => {
     const d = D(s);
@@ -384,7 +384,7 @@ function updateInteract(dt) {
   const it = findInteract(); curI = it;
   if (!it) { $('prompt').style.display = 'none'; holdT = 0; return; }
   $('prompt').style.display = 'block'; let pr = 0;
-  if (it.hold && KEY.KeyE && !ME.steep && !ME.air) { holdT += dt; pr = Math.min(1, holdT / it.hold); if (it.anim) ME.anim = it.anim; if (it.sawing) { ME.sawing = true; if (ME.boost <= 0) ME.sta = Math.max(0, ME.sta - 2.5 * dt); } if (holdT >= it.hold) { holdT = 0; KEY.KeyE = false; it.go(); } }
+  if (it.hold && KEY.KeyE && !ME.steep && !ME.air) { holdT += dt; pr = Math.min(1, holdT / it.hold); if (it.anim) ME.anim = it.anim; if (it.sawing) { ME.sawing = true; if (!teammates().some(t => (t.o.f & 1) && dist2(t.o.x, t.o.z, L.tree.x, L.tree.z) < 9)) hint('h_saw2'); if (ME.boost <= 0) ME.sta = Math.max(0, ME.sta - 2.5 * dt); } if (holdT >= it.hold) { holdT = 0; KEY.KeyE = false; it.go(); } }
   else holdT = 0;
   $('prompt').innerHTML = `<b>E</b> ${it.label}${it.hold ? `<span class="holdbar"><span style="width:${it.sawing ? WS.saw.p * 100 : pr * 100}%"></span></span>` : ''}`;
 }

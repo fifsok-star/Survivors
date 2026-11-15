@@ -124,7 +124,7 @@ function hostTick(dt) {
   // sawing the fallen tree
   if (!W.saw.done) {
     const sw = P.filter(s => (s.f & 1) && dist2(s.x, s.z, L.tree.x, L.tree.z) < 9);
-    if (sw.length && sw.some(s => s.f & 2)) { W.saw.p += dt * (sw.length >= 2 ? 1 / 7 : W.n <= 1 ? 1 / 10 : 1 / 45); Host.dirty = true; if (W.saw.p >= 1) { W.saw.done = true; hostToast('t_sawn'); hostEv('*', { k: 'sfx', s: 'win' }); } }
+    if (sw.length >= 2 && sw.some(s => s.f & 2)) { W.saw.p += dt / 7; Host.dirty = true; if (W.saw.p >= 1) { W.saw.done = true; hostToast('t_sawn'); hostEv('*', { k: 'sfx', s: 'win' }); } }
   }
   // checkpoints
   for (let i = W.cp + 1; i < L.camps.length; i++) if (P.some(s => dist2(s.x, s.z, L.camps[i].x, L.camps[i].z) < 7 && Math.abs(s.y - L.camps[i].y) < 5)) { W.cp = i; Host.dirty = true; hostToast('t_checkpoint'); hostEv('*', { k: 'sfx', s: 'ok' }); }
