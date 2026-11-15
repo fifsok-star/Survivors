@@ -5,7 +5,7 @@ const SET = Object.assign({ sens: 50, invY: 0, fov: 70, shadows: 2, bright: 50, 
 const SAVE = Object.assign({ name: '', ch: 0, lang: '', code: '' }, JSON.parse(localStorage.getItem('survivors') || '{}'));
 const saveAll = () => { try { localStorage.setItem('survivors-set', JSON.stringify(SET)); localStorage.setItem('survivors', JSON.stringify(SAVE)); } catch (e) { } };
 let WS = null, phase = 'load', lobby = { players: [], started: false }, myIdx = 0;
-const ME = { poison: 0, cold: 0, heat: 0, bio: -1, noFall: false, lavaT: 0, id: '', x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, ry: 0, air: false, peak: 0, slide: false, slideTop: 0, sta: 100, inj: 0, hun: 0, ko: false, koT: 0, mode: '', treeH: 0, quick: [null, null, null], pack: [null, null, null, null, null, null], sel: 0, boost: 0, side: [-1, -1], washT: 0, anim: 'idle', moving: false, sawing: false, falls: 0, g: null, steep: false, sit: false };
+const ME = { held: -1, punch: 0, poison: 0, cold: 0, heat: 0, bio: -1, noFall: false, lavaT: 0, id: '', x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, ry: 0, air: false, peak: 0, slide: false, slideTop: 0, sta: 100, inj: 0, hun: 0, ko: false, koT: 0, mode: '', treeH: 0, quick: [null, null, null], pack: [null, null, null, null, null, null], sel: 0, boost: 0, side: [-1, -1], washT: 0, anim: 'idle', moving: false, sawing: false, falls: 0, g: null, steep: false, sit: false };
 const OTH = new Map(), KEY = {}, CAM = { yaw: Math.PI, pitch: .28, dist: 5.4 };
 const maxSta = () => clamp(100 - ME.inj - ME.hun - ME.cold - ME.heat - ME.poison, 0, 100);
 const has = t => ME.quick.includes(t) || ME.pack.includes(t);
@@ -37,6 +37,8 @@ function sfx(n) {
   else if (n === 'step') tone(70 + Math.random() * 40, .05, 'triangle', .05);
   else if (n === 'bird') { const f = 1800 + Math.random() * 1400; tone(f, .08, 'sine', .03, f * 1.3); tone(f * 1.2, .1, 'sine', .03, f, .12); }
   else if (n === 'thunder') { if (!AC) return; const len = 1.6, b = AC.createBuffer(1, AC.sampleRate * len, AC.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2); const src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); f.type = 'lowpass'; f.frequency.value = 220; g.gain.value = .5; src.buffer = b; src.connect(f); f.connect(g); g.connect(master); src.start(); }
+  else if (n === 'roar') { tone(110, .9, 'sawtooth', .12, 55); tone(160, .7, 'square', .05, 70, .05); }
+  else if (n === 'bonk') { tone(240, .08, 'square', .12, 120); tone(1200, .05, 'triangle', .06, 600, .03); }
   else if (n === 'eat') { tone(400, .06, 'square', .06); tone(330, .06, 'square', .06, 0, .1); }
 }
 
@@ -150,6 +152,7 @@ function constrain(pz, n) {
     if (!WS.saw.done && pz >= TREE_Z + 1.6 && n.z < TREE_Z + 1.6) n.z = TREE_Z + 1.6;
   }
   collide(n, .4, ME.y);
+  for (let i = 0; i < SKV.length; i++) { const v = SKV[i]; if (!v.alive || !v.g.visible || !v.P.body.visible || Math.abs(v.y - ME.y) > 2.5) continue; const dx = n.x - v.x, dz = n.z - v.z, d = Math.hypot(dx, dz); if (d < 1.0 && d > 1e-3) { n.x = v.x + dx / d; n.z = v.z + dz / d; } }
   for (const o of OTH.values()) { if (Math.abs(o.y - ME.y) > 1.3 || o.k) continue; const dx = n.x - o.x, dz = n.z - o.z, d = Math.hypot(dx, dz); if (d < .62 && d > 1e-3) { n.x = o.x + dx / d * .62; n.z = o.z + dz / d * .62; } }
 }
 function ropeNear(x, z) { if (!WS) return false; for (let i = 2; i < L.stakes.length; i++) { const s = L.stakes[i]; if (WS.ropes[i] && Math.abs(x - s.x) < 1.7 && z > s.baseZ - 2 && z < s.z + 1) return true; } return false; }
@@ -212,6 +215,8 @@ function showBiome(b) {
 function updateMe(dt) {
   const me = ME, mx = maxSta();
   me.hun = Math.min(60, me.hun + dt / 11); if (me.boost > 0) me.boost -= dt;
+  if (me.held >= 0) { const v = SKV[me.held]; if (v) { const h = skelHand(v); me.x = h.x; me.y = h.y - 1.2; me.z = h.z; me.ry = v.ry + Math.PI; } me.anim = 'air'; me.air = false; me.moving = true; return; }
+  if (me.punch > 0) me.punch -= dt;
   if (me.ko) { me.koT += dt; me.anim = 'ko'; me.y += (getH(me.x, me.z) - me.y) * Math.min(1, dt * 8); return; }
   if (mx <= 5) { knockOut(); return; }
   biomeHazards(dt);
@@ -304,6 +309,7 @@ function updateMe(dt) {
 }
 function myState() { const h = ME.quick[ME.sel]; return { i: ME.id, x: +ME.x.toFixed(2), y: +ME.y.toFixed(2), z: +ME.z.toFixed(2), r: +ME.ry.toFixed(2), a: ME.anim, m: ME.moving ? 1 : 0, s: Math.round(ME.sta), mx: Math.round(maxSta()), k: ME.ko ? 1 : 0, h: h || '', f: (ME.sawing ? 1 : 0) | (has('saw') ? 2 : 0) }; }
 function onStates(m) {
+  onSkelStates(m.sk);
   if (WS && m.tm != null && !Net.isHost) WS.time = m.tm;
   for (const s of m.l) {
     if (s.i === ME.id) continue; let o = OTH.get(s.i);
@@ -328,6 +334,8 @@ function teammates() { return [...OTH.entries()].map(([id, o]) => ({ id, o })); 
 function findInteract() {
   const me = ME, W = WS; if (!W || me.ko) return null; let best = null, bd = 1e9;
   const C = (d, o) => { if (d < bd) { bd = d; best = o; } }, D = p => Math.hypot(p.x - me.x, p.z - me.z) + Math.abs((p.y == null ? me.y : p.y) - me.y) * .5;
+  if (me.held >= 0) return { label: T('t_grabbed'), go: () => { } };
+  { const si = skelNear(me.x, me.y, me.z, 2.8); if (si >= 0 && !me.steep) return { label: '💀 ' + T('i_hit') + (ME.quick[ME.sel] === 'shovel' ? ' ⛏️×2' : ''), go: () => { if (ME.sta < 8) return hint('t_tired'); ME.sta -= 8; ME.punch = .35; act({ k: 'hit', i: si, sh: ME.quick[ME.sel] === 'shovel' ? 1 : 0 }); } }; }
   if (me.mode === 'plat') return { label: T('i_down'), go: () => { me.mode = 'tree'; me.treeH = 13.4; } };
   if (me.mode === 'tree') return null;
   const myLog = W.logs.find(l => l.car.includes(me.id));
@@ -380,7 +388,7 @@ function updateInteract(dt) {
   else holdT = 0;
   $('prompt').innerHTML = `<b>E</b> ${it.label}${it.hold ? `<span class="holdbar"><span style="width:${it.sawing ? WS.saw.p * 100 : pr * 100}%"></span></span>` : ''}`;
 }
-function pressE() { if (curI && !curI.hold) curI.go(); }
+function pressE() { if (ME.held >= 0) { act({ k: 'struggle', i: ME.held }); sfx('click'); return; } if (curI && !curI.hold) curI.go(); }
 function useItem() {
   const t = ME.quick[ME.sel]; if (!t || ME.ko) return; const d = ITEMS[t];
   if (d.food) { ME.hun = Math.max(0, ME.hun - d.food); if (t !== 'can') ME.heat = Math.max(0, ME.heat - 10); ME.quick[ME.sel] = null; sfx('eat'); toast(T('t_ate')); }
@@ -413,6 +421,8 @@ function showMap(i) {
 let REVEAL = {}; const peekAt = {};
 function peek(w) { if (REVEAL[w]) return; const n = performance.now(); if (peekAt[w] && n - peekAt[w] < 1500) return; peekAt[w] = n; act({ k: 'peek', w }); }
 function onEv(e) {
+  if (e.k === 'grab') { ME.held = e.sk; ME.mode = ''; ME.slide = false; toast(T('t_grabbed'), 'bad'); sfx('hurt'); return; }
+  if (e.k === 'throw') { if (ME.held < 0) return; ME.held = -1; ME.air = true; ME.noFall = false; ME.peak = ME.y; ME.vx = e.vx; ME.vy = e.vy; ME.vz = e.vz; toast(T('t_thrown'), 'bad'); return; }
   if (e.k === 'reveal') { REVEAL[e.w] = e.v; return; }
   if (e.k === 'toast') toast(T(e.key, e.a), 'ev');
   else if (e.k === 'sfx') sfx(e.s);
@@ -483,14 +493,16 @@ function frame(now) {
   const dt = Math.min(.05, (now - lastT) / 1000 || .016); lastT = now; GFX.t += dt;
   if (phase === 'play') {
     updateMe(dt); updateInteract(dt);
-    if (ME.g) { ME.g.position.set(ME.x, ME.y, ME.z); let d = ME.ry - ME.g.rotation.y; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; ME.g.rotation.y += d * Math.min(1, dt * 14); animChar(ME.g, ME.anim, dt, 0, ME.moving); setHeld(ME.g, ME.anim === 'climb' || ME.anim === 'tree' || ME.anim === 'carry' || ME.anim === 'swim' ? '' : ME.quick[ME.sel]); ME.g.userData.tired = ME.anim === 'climb' && ME.sta < 22; }
+    if (ME.g) { ME.g.position.set(ME.x, ME.y, ME.z); let d = ME.ry - ME.g.rotation.y; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; ME.g.rotation.y += d * Math.min(1, dt * 14); animChar(ME.g, ME.punch > 0 ? 'punch' : ME.anim, dt, 0, ME.moving); setHeld(ME.g, ME.anim === 'climb' || ME.anim === 'tree' || ME.anim === 'carry' || ME.anim === 'swim' ? '' : ME.quick[ME.sel]); ME.g.userData.tired = ME.anim === 'climb' && ME.sta < 22; }
     updateOthers(dt); updateDynamic(dt);
     if (!Net.isHost) { sendAcc += dt; if (sendAcc > .075) { sendAcc = 0; Net.toHost({ t: 'p', s: myState() }); } }
     updateCamera(dt); updateHud(dt);
     updateMood(ME.z, dt, ME.x, ME.y, ME.z);
     updateHazards(dt, ME.z, WS ? WS.time : GFX.t);
     if (AC) { const jung = sstep(40, 70, ME.z) * (1 - sstep(320, 350, ME.z)); ambF.frequency.value = lerp(lerp(520, 900, sstep(300, 500, ME.z)), 300, jung); ambG.gain.value = lerp(.06, .025, jung) + sstep(380, 520, ME.z) * .05; if (jung > .5 && Math.random() < dt * .5) sfx('bird'); if ((ME.anim === 'walk' || ME.anim === 'run' || (ME.anim === 'climb' || ME.anim === 'tree') && ME.moving)) { stepAcc += dt * (ME.anim === 'run' ? 1.6 : 1); if (stepAcc > .38) { stepAcc = 0; sfx('step'); } } }
-    updateAnimals(dt, [ME, ...OTH.values()]);
+    updateAnimals(dt, [ME, ...OTH.values()]); updateSkeletons(dt);
+  } else if (phase === 'intro') {
+    updateIntro(dt); updateAnimals(dt, []);
   } else {
     menuCamera(GFX.t); updateMood(-20, dt, L.plane.x, L.plane.y, L.plane.z); updateAnimals(dt, []);
   }
@@ -505,8 +517,10 @@ function onStart(m) {
   Object.assign(ME, { sta: 100, inj: 0, hun: 0, ko: false, air: false, slide: false, mode: '', quick: [null, null, null], pack: [null, null, null, null, null, null], sel: 0, boost: 0, falls: 0 });
   if (ME.g) scene.remove(ME.g); ME.g = makeChar(SAVE.ch); scene.add(ME.g);
   const sp = m.late ? L.camps[m.W.cp] : L.spawn; ME.x = sp.x + (m.idx % 3) * 1.6 - 1.6; ME.z = sp.z - 2 - Math.floor(m.idx / 3) * 1.6; ME.y = getH(ME.x, ME.z); ME.ry = 0; CAM.yaw = 0; CAM.pitch = .25;
-  ME.cold = ME.heat = ME.poison = 0; ME.bio = -1; ME.noFall = false; REVEAL = {};
-  phase = 'play'; ui.show('hud'); onWorld(m.W); drawInv(); toast(T('t_start'), 'ev'); audioInit(); setTimeout(lockPointer, 50);
+  ME.cold = ME.heat = ME.poison = 0; ME.bio = -1; ME.noFall = false; ME.held = -1; ME.punch = 0; REVEAL = {};
+  onWorld(m.W); drawInv(); audioInit();
+  const go = () => { phase = 'play'; ui.show('hud'); onWorld(WS || m.W); toast(T('t_start'), 'ev'); setTimeout(lockPointer, 50); };
+  if (m.late || /[?&]nointro=1/.test(location.search)) go(); else startIntro(go);
 }
 function showWin() {
   phase = 'won'; document.exitPointerLock(); const W = WS, t = Math.round(W.time);

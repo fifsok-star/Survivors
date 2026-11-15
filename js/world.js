@@ -211,6 +211,11 @@ function genTry(seed, k) {
     if (sh && r() < .55) { const x = r() < .5 ? sh.x0 + 2 : sh.x1 - 2; let tz = WALLS[i][0] + wallOff(i, x); const hT = getH(x, tz - 6) + WALLS[i][2] * sh.t; for (let k = 0; k < 400 && getH(x, tz) < hT - .05; k++) tz += .2; if (bag(x, tz + sh.d * bandOf(sh, x) * .5)) break; }
     else { const x = sg() * (halfW(wallEnd(i, 0)) - 3 - r() * 6), z0 = wallEnd(i, x) + 5, z1 = WALLS[i + 1] ? WALLS[i + 1][0] + wallOff(i + 1, x) - 5 : Z_MAX - 30; if (z1 > z0 && bag(x, z0 + r() * (z1 - z0))) break; }
   }
+  // giant skeletons: one or two in the jungle and one on a plateau of every mountain biome (host decides which ones wake up)
+  o.skels = [];
+  const skel = (x, z) => { if (!freeAt(x, z) || o.skels.some(q => dist2(q.x, q.z, x, z) < 40) || dist2(x, z, o.spawn.x, o.spawn.z) < 60) return false; const p = P(x, z); o.skels.push(p); taken.push(p); return true; };
+  for (const zc of [120, 230]) for (let q = 0; q < 20; q++) { const z = zc + (r() * 2 - 1) * 35; if (skel(pathX(z) + (r() * 2 - 1) * halfW(z) * .55, z)) break; }
+  for (let b = 0; b < 6; b++) for (let q = 0; q < 20; q++) { const i = Math.min(NW - 2, BIO_FIRST[b] + 1), x = (r() * 2 - 1) * 16, z0 = wallEnd(i, x) + 8, z1 = WALLS[i + 1][0] + wallOff(i + 1, x) - 8; if (z1 > z0 && skel(x, z0 + r() * (z1 - z0))) break; }
   L = o;
 }
 function worldOK() {
@@ -256,6 +261,7 @@ function newWorld(nPlayers) {
   WX.forEach((w, i) => w.sh.forEach((sh, k) => { if ((i + k) % 2) return; const x = (sh.x0 + sh.x1) / 2, u = WALLS[i][1] * sh.t; let zz = WALLS[i][0] + wallOff(i, x); for (let q = 0; q < 200 && wallH(zz, x) - wallH(WALLS[i][0] - 9, x) < WALLS[i][2] * sh.t - .05; q++) zz += .25; it(['banana', 'piton', 'drink', 'can'][(i + k) % 4], x, zz + Math.min(1.2, sh.d / 3)); }));
   for (let i = 3; i < WALLS.length; i++) { const bi = wallBiome(i), x = (r() * 2 - 1) * 14, pool = [['drink', 'coconut', 'piton'], ['medkit', 'banana', 'piton'], ['drink', 'drink', 'can', 'piton'], ['tea', 'flare', 'tea', 'piton', 'can'], ['tea', 'piton', 'rope', 'can'], ['drink', 'medkit', 'piton', 'tea']][bi]; it(pool[(r() * pool.length) | 0], x, ledgeZ(i, x) + 2 + r() * 8); }
   const LOOT = { '-1': ['banana', 'coconut', 'can', 'rope', 'medkit', 'flare', 'compass', 'drink'], 0: ['piton', 'rope', 'can', 'drink', 'medkit', 'banana'], 1: ['medkit', 'medkit', 'banana', 'piton', 'rope', 'can'], 2: ['drink', 'drink', 'coconut', 'piton', 'medkit', 'can'], 3: ['tea', 'tea', 'flare', 'can', 'piton', 'rope'], 4: ['tea', 'piton', 'piton', 'rope', 'can', 'drink'], 5: ['drink', 'medkit', 'piton', 'rope', 'tea', 'can'] };
+  W.skel = L.skels.map(() => ({ on: r() < .7 ? 1 : 0, hp: SK_HP, dead: 0 })); if (W.skel.filter(s => s.on).length < 3) W.skel.forEach((s, i) => { if (i % 2 === 0) s.on = 1; });
   W.bags = L.bags.map(b => { const pool = LOOT[b.b], n = 2 + (r() < .45 ? 1 : 0), loot = []; for (let k = 0; k < n; k++) loot.push(pool[(r() * pool.length) | 0]); return { loot }; });
   W.logs = L.logs.map((g, i) => ({ id: i, x: g.x, z: g.z, ry: r() * 3, len: g.len, need: Math.min(g.need, Math.max(1, nPlayers)), car: [], br: -1, slot: 0 }));
   W.bridges = STREAMS.map(() => ({ logs: 0, rope: false, done: false }));

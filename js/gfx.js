@@ -284,10 +284,10 @@ function buildVegetation() {
 }
 function buildProps() {
   const add = (m) => { worldG.add(m); return m; };
-  const pf = add(prop('plane_front', L.plane.x, L.plane.y - .45, L.plane.z, 2.5, 1, true)); pf.rotation.z = .1;
+  const pf = add(prop('plane_front', L.plane.x, L.plane.y - .45, L.plane.z, 2.5, 1, true)); pf.rotation.z = .1; GFX.wreck = [pf];
   for (let k = -3; k <= 3.2; k += .5) { addCol(L.plane.x + Math.sin(2.5) * k * 1.9, L.plane.z + Math.cos(2.5) * k * 1.9, 1.8, L.plane.y + 4); }
-  add(prop('plane_tail', L.tail.x, L.tail.y - .5, L.tail.z, .9, 1, true)).rotation.z = -.25; for (let k = -1.5; k <= 1.6; k += .5) addCol(L.tail.x + Math.sin(.9) * k * 1.8, L.tail.z + Math.cos(.9) * k * 1.8, 1.7 - Math.max(0, k) * .4, L.tail.y + 5);
-  add(prop('plane_wing', L.wing.x, L.wing.y + .1, L.wing.z, 1.2, 1)).rotation.z = .12; for (let k = -3.5; k <= 3.6; k += 1) addCol(L.wing.x + Math.cos(1.2) * k, L.wing.z - Math.sin(1.2) * k, 1.35, L.wing.y + 1.3);
+  const tl = add(prop('plane_tail', L.tail.x, L.tail.y - .5, L.tail.z, .9, 1, true)); tl.rotation.z = -.25; GFX.wreck.push(tl); for (let k = -1.5; k <= 1.6; k += .5) addCol(L.tail.x + Math.sin(.9) * k * 1.8, L.tail.z + Math.cos(.9) * k * 1.8, 1.7 - Math.max(0, k) * .4, L.tail.y + 5);
+  const wg = add(prop('plane_wing', L.wing.x, L.wing.y + .1, L.wing.z, 1.2, 1)); wg.rotation.z = .12; GFX.wreck.push(wg); for (let k = -3.5; k <= 3.6; k += 1) addCol(L.wing.x + Math.cos(1.2) * k, L.wing.z - Math.sin(1.2) * k, 1.35, L.wing.y + 1.3);
   const r = rng(9);
   for (let i = 0; i < 5; i++) { const x = -10 + r() * 22, z = -8 + r() * 20; if (dist2(x, z, L.plane.x, L.plane.z) < 4) continue; add(prop(i % 2 ? 'seat' : 'suitcase', x, getH(x, z), z, r() * 6, 1)).rotation.z = i % 2 ? 1.2 : 0; addCol(x, z, .5, getH(x, z) + .9); }
   L.camps.forEach((c, i) => { add(prop('campfire', c.x, c.y, c.z, i, 1)); addFire(c.x, c.y + .3, c.z); addCol(c.x, c.z, .7, c.y + .8); addCol(c.x - 1.8, c.z + .6, .55, c.y + .7); if (i) { add(prop('tent', c.x + 3.4, getH(c.x + 3.4, c.z + 1.5), c.z + 1.5, -1 + i, 1)); addCol(c.x + 3.4, c.z + 1.5, 1.45, c.y + 2); } add(prop('log', c.x - 1.8, getH(c.x - 1.8, c.z) + .25, c.z + .6, 1.2, 1)).scale.set(1.8, 1, 1); });
@@ -369,6 +369,7 @@ function animChar(g, st, dt, speed, moving) {
   else if (st === 'ko') { bx = -1.5; aL = [-.4, 0, 1.3]; aR = [-.3, 0, -1.3]; lL = .1; lR = -.15; }
   else if (st === 'swim') { bx = 1.15; aL = [-2.9 + s * .9, 0, .5]; aR = [-2.9 - s * .9, 0, -.5]; lL = s * .5; lR = -s * .5; head = -.7; }
   else if (st === 'sit') { hip = u.hipY - .27; lL = lR = -1.5; sL = sR = 1.45; aL = [-.5, 0, .15]; aR = [-.5, 0, -.15]; fL = fR = -.8; tor = .12; }
+  else if (st === 'punch') { aR = [-1.6 + Math.sin(u.ph * 2) * .4, 0, -.1]; fR = -.1; aL = [-.9, 0, .2]; fL = -1.4; tor = .3; lL = -.4; lR = .3; }
   else if (st === 'pull') { aL = [-1.2, 0, .1]; aR = [-1.2, 0, -.1]; fL = fR = -.3; tor = .6; lL = -.5; lR = .4; sL = .5; }
   else { tor = Math.sin(u.ph) * .02; aL = [Math.sin(u.ph) * .04, 0, .1]; aR = [-Math.sin(u.ph) * .04, 0, -.1]; head = Math.sin(u.ph * .5) * .05; }
   u.body.rotation.x += (bx - u.body.rotation.x) * k * .6; u.body.rotation.z = bz; u.body.position.z += (off - u.body.position.z) * k * .6;
@@ -451,7 +452,7 @@ function buildWorldScene() {
     { z: BIO_Z[5] + 25, top: 0x3a2632, hor: 0xd06a46, fog: 0x8c5a4c, fd: .005, sun: 0xff8a50, si: 1.0, dir: [.6, .45, -.5] },
     { z: Z_MAX - 25, top: 0x2b3a86, hor: 0xff9a6a, fog: 0xe0a892, fd: .0022, sun: 0xff9a55, si: 1.2, dir: [.7, .26, -.6] }];
   MOODS[2].z = JUNGLE_END + 10;
-  buildTerrain(); buildWater(); buildProps(); buildHazards(); buildDynamic(); buildVegetation(); buildAnimals();
+  buildTerrain(); buildWater(); buildProps(); buildHazards(); buildDynamic(); buildSkeletons(); buildVegetation(); buildAnimals();
 }
 // ---------------------------------------------------------------- biome hazards: lava pools, oases, steam vents, weather
 const LAVA_FS = `uniform float uT; varying vec3 vW; float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);} float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}

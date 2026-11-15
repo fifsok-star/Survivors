@@ -66,7 +66,7 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 #mapview{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-2deg);pointer-events:auto;background:#e2cf9a;border:10px solid #c9b077;border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.6);padding:8px;color:#5a3a1a;text-shadow:none;text-align:center;font-weight:800}
 #mapcv{width:min(440px,70vw);height:auto;display:block;filter:sepia(.35)}
 #loadBar{width:min(420px,70vw);height:18px;border:3px solid #ffe9a8;border-radius:10px;overflow:hidden;margin-top:14px}#loadFill{height:100%;width:0;background:#ffe9a8;transition:width .2s}
-#loading{display:flex;background:linear-gradient(#1b6a8f,#0d2a3a)}#loadText{color:#fff;font-weight:700;margin-top:10px}
+#intro{display:none;position:fixed;inset:0;z-index:15;pointer-events:none}#intro .lb{position:absolute;left:0;right:0;height:11vh;background:#000}#intro .top{top:0}#intro .bot{bottom:0}#introSub{position:absolute;bottom:14vh;left:50%;transform:translateX(-50%);color:#fff;font-size:24px;font-weight:800;text-shadow:0 2px 8px #000;text-align:center;width:90vw}#introFade{position:absolute;inset:0;background:#000;opacity:1}#introSkip{position:absolute;right:20px;bottom:3vh;pointer-events:auto;font-size:15px;padding:6px 14px;background:rgba(255,255,255,.85)}#loading{display:flex;background:linear-gradient(#1b6a8f,#0d2a3a)}#loadText{color:#fff;font-weight:700;margin-top:10px}
 @media(max-width:760px){.chars,#playerList{grid-template-columns:repeat(3,1fr)}.set{grid-template-columns:1fr}#mates{width:140px}}
 </style>
 </head>
@@ -107,6 +107,8 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
   <div id="keys">WASD · Shift · Space · E · F · G · Tab · 1-3 · Esc</div>
 </div>
 
+<div id="intro"><div class="lb top"></div><div class="lb bot"></div><div id="introSub"></div><div id="introFade"></div><button id="introSkip" data-i18n="i_skip"></button></div>
+
 <div id="pause" class="overlay" style="z-index:20"><div class="panel" style="text-align:center"><h2 data-i18n="p_title"></h2>
   <div class="row" style="flex-direction:column"><button id="btnResume" class="grn" data-i18n="p_resume"></button><button class="alt btnSettings" data-i18n="m_settings"></button><button class="dc btnDiscord" data-i18n="m_discord"></button><button id="btnRespawn" data-i18n="p_respawn"></button><button id="btnLeave" class="red" data-i18n="p_leave"></button></div></div></div>
 
@@ -136,7 +138,7 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 // the published game runs from the packed build; ?dev=1 (or a local server) runs the readable sources
 (function () {
   var q = location.search, dev = /[?&]dev=1/.test(q) || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && !/[?&]pak=1/.test(q));
-  var f = dev ? ['i18n', 'world', 'gfx', 'net', 'host', 'game', 'ui'].map(function (n) { return 'js/' + n + '.js'; }) : ['game.pak.js'];
+  var f = dev ? ['i18n', 'world', 'gfx', 'net', 'host', 'skel', 'intro', 'game', 'ui'].map(function (n) { return 'js/' + n + '.js'; }) : ['game.pak.js'];
   f.forEach(function (x) { document.write('<script src="' + x + '"><\/script>'); });
 })();
 </script>

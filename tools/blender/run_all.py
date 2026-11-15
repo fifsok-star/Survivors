@@ -7,6 +7,7 @@ exec(open(os.path.join(HERE, 'helpers.py'), encoding='utf-8').read(), ns)
 ns['wipe']()
 exec(open(os.path.join(HERE, 'build_characters.py'), encoding='utf-8').read(), ns)
 exec(open(os.path.join(HERE, 'build_props.py'), encoding='utf-8').read(), ns)
+exec(open(os.path.join(HERE, 'build_skel_plane.py'), encoding='utf-8').read(), ns)
 STATS = ns['stats']()
 
 def export():

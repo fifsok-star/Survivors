@@ -3,7 +3,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
 const ROOT = path.join(__dirname, '..');
-const FILES = ['i18n', 'world', 'gfx', 'net', 'host', 'game', 'ui'].map(n => `js/${n}.js`);
+const FILES = ['i18n', 'world', 'gfx', 'net', 'host', 'skel', 'intro', 'game', 'ui'].map(n => `js/${n}.js`);
 // private links: read from secrets.local.json (not in git) and stored scrambled inside the packed build only
 let secrets = {}; try { secrets = JSON.parse(fs.readFileSync(path.join(ROOT, 'secrets.local.json'), 'utf8')); } catch (e) { console.warn('no secrets.local.json - the Discord button will be hidden'); }
 const veil = t => { let k = 0x5c, o = ''; for (let i = 0; i < t.length; i++) { o += String.fromCharCode(t.charCodeAt(i) ^ k); k = (k * 31 + 7) & 255; } return Buffer.from(o, 'latin1').toString('base64'); };

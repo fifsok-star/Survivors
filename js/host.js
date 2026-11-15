@@ -15,7 +15,7 @@ function pubW(W) { return Object.assign({}, W, { totems: Object.assign({}, W.tot
 function hostBegin() {
   hostLoop();
   genWorld(((Math.random() * 2147483000) | 0) + 2);            // a brand new island every game
-  Host.W = newWorld(Host.roster.size); Host.started = true; Host.dirty = false;
+  Host.W = newWorld(Host.roster.size); Host.started = true; Host.dirty = false; skelHostInit();
   const m = { t: 'start', W: Host.W, idx: 0 }; let i = 0;
   for (const id of Host.roster.keys()) { m.idx = i++; if (id === Net.id) onStart(JSON.parse(JSON.stringify(m))); else Net.send(id, { t: 'start', W: pubW(Host.W), idx: m.idx }); }
   hostLobby();
@@ -69,7 +69,8 @@ function hostAct(pid, a) {
     case 'unrope': if (!W.ropes[a.s]) return; W.ropes[a.s] = 0; hostEv(pid, { k: 'got', it: 'rope' }); break;
     case 'lash': { const b = W.bridges[a.b]; if (b.rope || b.done) { hostEv(pid, { k: 'got', it: 'rope' }); return; } b.rope = true; checkBridge(a.b); break; }
     case 'piton': if (W.pitons.length < 60) W.pitons.push({ x: a.x, y: a.y, z: a.z }); break;
-    case 'flare': W.flares.push({ x: a.x, y: a.y, z: a.z, t: W.time }); if (W.flares.length > 6) W.flares.shift(); break;
+    case 'hit': case 'struggle': if (!skelHostAct(pid, a, st)) return; break;
+    case 'flare': skelFlare(a.x, a.z); W.flares.push({ x: a.x, y: a.y, z: a.z, t: W.time }); if (W.flares.length > 6) W.flares.shift(); break;
     case 'dig': if (W.digs[a.i]) return; W.digs[a.i] = 1; hostToast('t_dug', [name(pid)]); hostEv('*', { k: 'sfx', s: 'chest' }); break;
     case 'radio': if (W.radio.t) return; W.radio.t = W.time; hostToast('t_radio'); hostEv('*', { k: 'sfx', s: 'win' }); break;
     case 'peek': {                               // reveal a puzzle answer only to a player standing where the clue is
@@ -119,6 +120,7 @@ function hostTick(dt) {
       if (Math.abs(cx - g.x) + Math.abs(cz - g.z) > .02) { g.x = cx; g.z = cz; if (cs.length > 1) g.ry = Math.atan2(cs[1].z - cs[0].z, -(cs[1].x - cs[0].x)); else g.ry = -cs[0].r; Host.dirty = true; }
     }
   }
+  skelHostTick(dt, P);
   // sawing the fallen tree
   if (!W.saw.done) {
     const sw = P.filter(s => (s.f & 1) && dist2(s.x, s.z, L.tree.x, L.tree.z) < 9);
@@ -130,6 +132,6 @@ function hostTick(dt) {
   if (W.radio.t && !W.won && W.time - W.radio.t > 36) { W.won = 1; Host.dirty = true; }
   if (W.flares.length && W.time - W.flares[0].t > 45) { W.flares.shift(); Host.dirty = true; }
   Host.acc += dt; Host.accP += dt;
-  if (Host.accP > .075) { Host.accP = 0; const m = { t: 'ps', l: P, tm: W.time }; Net.all(m); onStates(m); }
+  if (Host.accP > .075) { Host.accP = 0; const m = { t: 'ps', l: P, tm: W.time, sk: skelStates() }; Net.all(m); onStates(m); }
   if (Host.dirty && Host.acc > .09) { Host.acc = 0; Host.dirty = false; W.rev++; Net.all({ t: 'W', W: pubW(W) }); onWorld(W); }
 }

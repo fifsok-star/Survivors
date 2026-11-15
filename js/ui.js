@@ -58,7 +58,9 @@ function bindSettings() {
 function bindInput() {
   const cv = $('game');
   addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT') return; if (phase !== 'play') return;
+    if (e.target.tagName === 'INPUT') return;
+    if (phase === 'intro') { if (['Space', 'Enter', 'Escape'].includes(e.code)) { e.preventDefault(); endIntro(); } return; }
+    if (phase !== 'play') return;
     if (e.code === 'Tab') { e.preventDefault(); if (!e.repeat) toggleInv(); return; }
     if (e.code === 'Escape') { if (invOpen) toggleInv(false); else if (mapOpen >= 0) showMap(mapOpen); return; }
     if (e.code === 'Space') e.preventDefault();
@@ -88,6 +90,7 @@ function bindInput() {
   $('btnResume').onclick = () => { ui.pause(false); lockPointer(); };
   $('btnRespawn').onclick = () => { ME.inj = Math.min(90, ME.inj + 10); respawn(); ui.pause(false); };
   $('btnAgain').onclick = () => { phase = 'lobby'; if (Net.isHost) { Host.started = false; hostLobby(); } ui.show('lobby'); };
+  $('introSkip').onclick = () => endIntro();
   $('mapview').onclick = () => { if (mapOpen >= 0) showMap(mapOpen); };
 }
 async function boot() {
