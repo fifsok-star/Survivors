@@ -62,7 +62,7 @@ function invClick(s, right) {
   drawInv();
 }
 function dropItem(arr, i) { const t = arr[i]; if (!t) return; arr[i] = null; act({ k: 'drop', it: t, x: ME.x + Math.sin(ME.ry) * .8, z: ME.z + Math.cos(ME.ry) * .8, y: ME.y + 1 }); drawInv(); }
-function toggleInv(v) { invOpen = v == null ? !invOpen : v; invSel = null; $('pack').style.display = invOpen ? 'block' : 'none'; if (invOpen) document.exitPointerLock(); drawInv(); }
+function toggleInv(v) { invOpen = v == null ? !invOpen : v; invSel = null; $('pack').style.display = invOpen ? 'block' : 'none'; if (invOpen) document.exitPointerLock(); else if (phase === 'play' && !ui.paused) lockPointer(); document.body.classList.toggle('inv', invOpen); drawInv(); }
 
 // ---------------------------------------------------------------- world state -> scene
 const OBJ = {};
@@ -402,7 +402,7 @@ function useItem() {
   drawInv();
 }
 function showMap(i) {
-  if (mapOpen === i) { mapOpen = -1; $('mapview').style.display = 'none'; return; } mapOpen = i;
+  if (mapOpen === i) { mapOpen = -1; $('mapview').style.display = 'none'; lockPointer(); return; } mapOpen = i;
   const c = $('mapcv'), x = c.getContext('2d'), p = L.digs[i], R = 44, N = 110, cs = c.width / N;
   for (let a = 0; a < N; a++) for (let b = 0; b < N; b++) {
     const wx = p.x - 8 + (a / N - .5) * 2 * R, wz = p.z - 6 - (b / N - .5) * 2 * R, h = getH(wx, wz), s = slopeAt(wx, wz).ang;

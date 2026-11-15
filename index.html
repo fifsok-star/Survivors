@@ -7,7 +7,7 @@
 <meta name="description" content="Survivors – co-op climbing adventure for 2–6 players, right in the browser.">
 <style>
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#0d2a3a;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;color:#3a2a17;user-select:none}
-#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block}body.playing:not(.inv) #game{cursor:none}
 .screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:5;padding:16px;overflow:auto}
 #logoBg{position:fixed;inset:0;background:radial-gradient(ellipse at center,rgba(8,30,44,0) 30%,rgba(8,30,44,.55) 100%);z-index:1;pointer-events:none}
 h1.logo{font-size:clamp(44px,9vw,104px);margin:0;letter-spacing:.06em;color:#ffe9a8;-webkit-text-stroke:3px #5a2f12;text-shadow:0 6px 0 #5a2f12,0 12px 24px rgba(0,0,0,.45);font-weight:900;transform:rotate(-2deg)}

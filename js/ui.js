@@ -8,7 +8,7 @@ function openDiscord() { const u = unveil(SECRETS.d); if (u) window.open(u, '_bl
 function loadDevSecrets() { if (SECRETS.d) return Promise.resolve(); return fetch('secrets.local.json').then(r => r.ok ? r.json() : null).then(j => { if (j && j.discord) SECRETS.d = veil(j.discord); }).catch(() => { }); }
 function veil(t) { let k = 0x5c, o = ''; for (let i = 0; i < t.length; i++) { o += String.fromCharCode(t.charCodeAt(i) ^ k); k = (k * 31 + 7) & 255; } return btoa(o); }
 const ui = { paused: false, cur: 'loading', thumbs: [],
-  show(n) { ui.cur = n; for (const s of ['loading', 'menu', 'lobby', 'hud', 'win']) $(s).style.display = s === n ? (s === 'hud' ? 'block' : 'flex') : 'none'; ui.pause(false); $('logoBg').style.display = n === 'hud' ? 'none' : 'block'; },
+  show(n) { ui.cur = n; document.body.classList.toggle('playing', n === 'hud'); for (const s of ['loading', 'menu', 'lobby', 'hud', 'win']) $(s).style.display = s === n ? (s === 'hud' ? 'block' : 'flex') : 'none'; ui.pause(false); $('logoBg').style.display = n === 'hud' ? 'none' : 'block'; },
   pause(v) { ui.paused = v; $('pause').style.display = v ? 'flex' : 'none'; if (!v) $('settings').style.display = 'none'; },
   err(k) { $('menuErr').textContent = k ? T(k) : ''; }
 };
