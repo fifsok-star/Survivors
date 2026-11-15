@@ -8,14 +8,14 @@ A co-op climbing adventure for 2–6 players that runs in the browser. Your plan
 
 - **Room-based multiplayer** (peer-to-peer, PeerJS) for 2–6 players, with a lobby and six characters to pick from. Your character, name and settings are remembered.
 - **Stamina is everything.** Sprinting, climbing, carrying and swimming drain it; it refills when you stand still. Hunger and injuries shrink the maximum – eat, and rest by campfires.
-- **Beach → jungle → a long mountain in four biomes:** alpine meadows, the red canyon (heat – cool down at oases), icy slopes (cold – warm up by fires, flares and tea) and the volcano (lava pools, steam vents that throw you up). Lost suitcases full of items are hidden all over the island.
+- **Beach → jungle → a long mountain (~550 m) in six biomes:** alpine meadows, dark roots (fog, poison spore clouds), the red canyon (heat – cool down at oases), icy slopes (cold – warm up by fires, flares and tea), the storm ridge (gales – shelter behind boulders, lightning) and the volcano (lava pools, steam vents that throw you up). Lost suitcases full of items are hidden all over the island.
 - **Jungle tasks.** Build a footbridge by carrying logs together, read the totem order from the top of the lookout tree, hold pressure plates at the same time to win the two-man saw, cut the fallen tree together, lash a bigger bridge with rope – and then the mountain appears.
 - **Climbing with friends.** Steep walls are climbed automatically; run out of stamina and you slide down. Hammer pitons for resting spots, fix ropes on stakes for the rest of the crew, boost a teammate from below or pull them over the edge. Pits can only be left on a rope.
 - **Items:** 3 quick slots + a 6-slot backpack. Dropped things tumble down slopes, so somebody has to go back for them.
 - **Treasure maps:** find a map and a shovel, look for the X and dig.
 - **Settings:** mouse sensitivity, invert Y, field of view, shadows, light brightness, graphics quality, view distance, volume, FPS counter.
 - **Languages:** Polski, English, Deutsch, Français, Українська.
-- Voice chat is not built in – the menu links to the Discord server.
+- Voice chat is not built in – the menu has a button to the crew's Discord server. The invite link is kept out of the source: put it in `secrets.local.json` (`{"discord": "https://discord.gg/…"}`, ignored by git) and `tools/build.js` bakes it, scrambled, into `game.pak.js`.
 
 ## Controls
 

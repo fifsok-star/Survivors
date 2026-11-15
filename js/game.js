@@ -5,9 +5,9 @@ const SET = Object.assign({ sens: 50, invY: 0, fov: 70, shadows: 2, bright: 50, 
 const SAVE = Object.assign({ name: '', ch: 0, lang: '', code: '' }, JSON.parse(localStorage.getItem('survivors') || '{}'));
 const saveAll = () => { try { localStorage.setItem('survivors-set', JSON.stringify(SET)); localStorage.setItem('survivors', JSON.stringify(SAVE)); } catch (e) { } };
 let WS = null, phase = 'load', lobby = { players: [], started: false }, myIdx = 0;
-const ME = { cold: 0, heat: 0, bio: -1, noFall: false, lavaT: 0, id: '', x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, ry: 0, air: false, peak: 0, slide: false, slideTop: 0, sta: 100, inj: 0, hun: 0, ko: false, koT: 0, mode: '', treeH: 0, quick: [null, null, null], pack: [null, null, null, null, null, null], sel: 0, boost: 0, side: [-1, -1], washT: 0, anim: 'idle', moving: false, sawing: false, falls: 0, g: null, steep: false, sit: false };
+const ME = { poison: 0, cold: 0, heat: 0, bio: -1, noFall: false, lavaT: 0, id: '', x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, ry: 0, air: false, peak: 0, slide: false, slideTop: 0, sta: 100, inj: 0, hun: 0, ko: false, koT: 0, mode: '', treeH: 0, quick: [null, null, null], pack: [null, null, null, null, null, null], sel: 0, boost: 0, side: [-1, -1], washT: 0, anim: 'idle', moving: false, sawing: false, falls: 0, g: null, steep: false, sit: false };
 const OTH = new Map(), KEY = {}, CAM = { yaw: Math.PI, pitch: .28, dist: 5.4 };
-const maxSta = () => clamp(100 - ME.inj - ME.hun - ME.cold - ME.heat, 0, 100);
+const maxSta = () => clamp(100 - ME.inj - ME.hun - ME.cold - ME.heat - ME.poison, 0, 100);
 const has = t => ME.quick.includes(t) || ME.pack.includes(t);
 function takeItem(t) { let i = ME.quick.indexOf(t); if (i >= 0) { ME.quick[i] = null; return true; } i = ME.pack.indexOf(t); if (i >= 0) { ME.pack[i] = null; return true; } return false; }
 function giveItem(t) { let i = ME.quick.indexOf(null); if (i >= 0) { ME.quick[i] = t; drawInv(); return true; } i = ME.pack.indexOf(null); if (i >= 0) { ME.pack[i] = t; drawInv(); return true; } return false; }
@@ -36,6 +36,7 @@ function sfx(n) {
   else if (n === 'hurt') tone(240, .3, 'sawtooth', .14, 80);
   else if (n === 'step') tone(70 + Math.random() * 40, .05, 'triangle', .05);
   else if (n === 'bird') { const f = 1800 + Math.random() * 1400; tone(f, .08, 'sine', .03, f * 1.3); tone(f * 1.2, .1, 'sine', .03, f, .12); }
+  else if (n === 'thunder') { if (!AC) return; const len = 1.6, b = AC.createBuffer(1, AC.sampleRate * len, AC.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2); const src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); f.type = 'lowpass'; f.frequency.value = 220; g.gain.value = .5; src.buffer = b; src.connect(f); f.connect(g); g.connect(master); src.start(); }
   else if (n === 'eat') { tone(400, .06, 'square', .06); tone(330, .06, 'square', .06, 0, .1); }
 }
 
@@ -160,7 +161,7 @@ function hurt(eff) {
   if (eff > 24 || maxSta() <= 5) knockOut();
 }
 function knockOut() { if (ME.ko) return; ME.ko = true; ME.koT = 0; ME.sta = 0; ME.mode = ''; if (!ME.drownT && getH(ME.x, ME.z) > -1) toast(T('t_ko'), 'bad'); }
-function respawn() { const c = L.camps[WS ? WS.cp : 0]; ME.x = c.x + 2 + myIdx * .7; ME.z = c.z - 2; ME.y = getH(ME.x, ME.z); ME.ko = false; ME.air = false; ME.slide = false; ME.mode = ''; ME.inj = Math.min(ME.inj, 45); ME.hun = Math.min(ME.hun, 30); ME.cold = Math.min(ME.cold, 15); ME.heat = Math.min(ME.heat, 15); ME.sta = maxSta(); ME.vx = ME.vy = ME.vz = 0; }
+function respawn() { const c = L.camps[WS ? WS.cp : 0]; ME.x = c.x + 2 + myIdx * .7; ME.z = c.z - 2; ME.y = getH(ME.x, ME.z); ME.ko = false; ME.air = false; ME.slide = false; ME.mode = ''; ME.inj = Math.min(ME.inj, 45); ME.hun = Math.min(ME.hun, 30); ME.cold = Math.min(ME.cold, 15); ME.heat = Math.min(ME.heat, 15); ME.poison = Math.min(ME.poison, 10); ME.sta = maxSta(); ME.vx = ME.vy = ME.vz = 0; }
 
 // ---------------------------------------------------------------- my movement
 // ---------------------------------------------------------------- biomes: heat in the canyon, frost on the icy slopes, lava and steam vents on the volcano
@@ -171,9 +172,21 @@ function biomeHazards(dt) {
   const fire = L.camps.some(c => near(c.x, c.z, 6.5) && Math.abs(me.y - c.y) < 4) || (WS && WS.flares.some(f => near(f.x, f.z, 9)));
   const oasis = OASES.some(o => near(o.x, o.z, o.r + 1.5));
   let dCold = -6, dHeat = -6;
-  if (b === 2) dCold = fire ? -9 : (me.moving ? .55 : .8);           // cold builds up while you're out in the snow, faster when you stand still
-  if (b === 1) dHeat = oasis ? -12 : (me.moving || me.steep ? .62 : .25);
-  if (b === 3) dHeat = LAVA.some(o => near(o.x, o.z, o.r + 6)) ? 1.2 : .3;
+  const gust = b === B_STORM && WS ? gustAt(WS.time) : null;
+  if (b === B_SNOW) dCold = fire ? -9 : (me.moving ? .55 : .8);      // cold builds up while you're out in the snow, faster when you stand still
+  if (b === B_STORM) dCold = fire ? -9 : gust && gust.on ? 1.1 : .4;
+  if (b === B_MESA) dHeat = oasis ? -12 : (me.moving || me.steep ? .62 : .25);
+  if (b === B_VOLC) dHeat = LAVA.some(o => near(o.x, o.z, o.r + 6)) ? 1.2 : .3;
+  // roots: poison spore clouds - leave them quickly, a first-aid kit cures the poison
+  const inSpores = b === B_ROOT && SPORES.some(o => near(o.x, o.z, o.r) && me.y < getH(o.x, o.z) + 4);
+  me.poison = clamp(me.poison + (inSpores ? 3.2 : -.12) * dt, 0, 40); if (inSpores) hint('t_spores');
+  $('vign').classList.toggle('poison', me.poison > 10 || inSpores);
+  // storm ridge: gusts push you sideways unless a big rock shelters you
+  if (gust && gust.on && !me.air && !me.ko) {
+    const shelter = insideCol(me.x - gust.dir * 1.3, me.y + .8, me.z, .4);
+    if (!shelter) { const f = me.steep ? 1.1 : me.moving ? 2.6 : 1.8; me.x += gust.dir * f * dt; if (me.steep && me.boost <= 0) me.sta -= 4 * dt; }
+    $('wind').style.display = 'block'; $('wind').textContent = (gust.dir > 0 ? '⟵ ' : '') + '💨 ' + T(shelter ? 't_shelter' : 't_wind') + (gust.dir > 0 ? '' : ' ⟶');
+  } else $('wind').style.display = 'none';
   if (fire && b !== 2) dCold = -9;
   me.cold = clamp(me.cold + dCold * dt, 0, 45); me.heat = clamp(me.heat + dHeat * dt, 0, 40);
   if (me.cold > 12 && Math.random() < dt * .1) hint('t_cold'); if (me.heat > 12 && Math.random() < dt * .1) hint('t_hot');
@@ -247,7 +260,7 @@ function updateMe(dt) {
     else if (moving) {
       const up = iz > 0 ? 1.75 : 2.3;                                                       // m/s along the rock, faster going down
       n.x += (sl.gx * iz * ca * up + rx * ix * 1.55) * k * dt; n.z += (sl.gz * iz * ca * up + rz * ix * 1.55) * k * dt;
-      drain((iz > 0 ? 5.2 : iz < 0 ? 1.6 : 3.2) * (rope ? .32 : 1) * (pit ? 9 : 1) * (me.bio === 2 ? 1.2 : 1));
+      drain((iz > 0 ? 5.2 : iz < 0 ? 1.6 : 3.2) * (rope ? .32 : 1) * (pit ? 9 : 1) * (me.bio === B_SNOW || me.bio === B_STORM ? 1.2 : 1));
     } else if (pin || rope) me.sta = Math.min(mx, me.sta + 4.5 * dt); else drain(1.0);
     constrain(prevZ, n); me.x = n.x; me.z = n.z; me.y = groundAt(me.x, me.z); me.anim = 'climb'; me.ry = Math.atan2(sl.gx, sl.gz);
     if (KEY.Space && !KEY._jl) {
@@ -261,7 +274,7 @@ function updateMe(dt) {
   // walking
   const carry = WS && WS.logs.find(l => l.car.includes(me.id) && l.car.length >= l.need), holding = WS && WS.logs.some(l => l.car.includes(me.id));
   const sprint = KEY.ShiftLeft && moving && me.sta > 1 && !holding && !swim;
-  let sp = swim ? 2.1 : carry ? 2.5 : holding ? 0 : sprint ? 6.9 : 4.1; if (g0 < -.3 && !swim) sp *= .7; if (me.bio === 2) sp *= .85;
+  let sp = swim ? 2.1 : carry ? 2.5 : holding ? 0 : sprint ? 6.9 : 4.1; if (g0 < -.3 && !swim) sp *= .7; if (me.bio === B_SNOW) sp *= .85;
   if (moving) { n.x += wx * sp * dt; n.z += wz * sp * dt; me.ry = Math.atan2(wx, wz); }
   constrain(prevZ, n);
   const ns = slopeAt(n.x, n.z);
@@ -371,7 +384,7 @@ function pressE() { if (curI && !curI.hold) curI.go(); }
 function useItem() {
   const t = ME.quick[ME.sel]; if (!t || ME.ko) return; const d = ITEMS[t];
   if (d.food) { ME.hun = Math.max(0, ME.hun - d.food); if (t !== 'can') ME.heat = Math.max(0, ME.heat - 10); ME.quick[ME.sel] = null; sfx('eat'); toast(T('t_ate')); }
-  else if (t === 'medkit') { if (ME.inj < 3) return hint('t_healthy'); ME.inj = Math.max(0, ME.inj - 55); ME.quick[ME.sel] = null; sfx('ok'); }
+  else if (t === 'medkit') { if (ME.inj < 3 && ME.poison < 3) return hint('t_healthy'); ME.inj = Math.max(0, ME.inj - 55); ME.poison = 0; ME.quick[ME.sel] = null; sfx('ok'); }
   else if (t === 'drink') { ME.boost = 16; ME.heat = Math.max(0, ME.heat - 30); ME.sta = maxSta(); ME.quick[ME.sel] = null; sfx('ok'); toast(T('t_boost')); }
   else if (t === 'tea') { ME.cold = Math.max(0, ME.cold - 45); ME.sta = Math.min(maxSta(), ME.sta + 25); ME.quick[ME.sel] = null; sfx('eat'); toast(T('t_tea')); }
   else if (t === 'flare') { ME.quick[ME.sel] = null; act({ k: 'flare', x: ME.x, y: ME.y, z: ME.z }); }
@@ -445,7 +458,7 @@ function drawCompass() {
   el.querySelectorAll('i.m').forEach(d => { if (!ids.has(d.id)) d.remove(); });
 }
 function updateHud(dt) {
-  const mx = maxSta(); $('staFill').style.width = clamp(ME.sta, 0, 100) + '%'; $('staHun').style.width = ME.hun + '%'; $('staInj').style.width = ME.inj + '%'; $('staHun').style.right = ME.inj + '%'; const tmp = ME.cold + ME.heat; $('staTmp').style.right = (ME.inj + ME.hun) + '%'; $('staTmp').style.width = tmp + '%'; $('staTmp').className = ME.cold >= ME.heat ? 'cold' : 'hot';
+  const mx = maxSta(); $('staFill').style.width = clamp(ME.sta, 0, 100) + '%'; $('staHun').style.width = ME.hun + '%'; $('staInj').style.width = ME.inj + '%'; $('staHun').style.right = ME.inj + '%'; const tmp = ME.cold + ME.heat; $('staPoi').style.right = (ME.inj + ME.hun) + '%'; $('staPoi').style.width = ME.poison + '%'; $('staTmp').style.right = (ME.inj + ME.hun + ME.poison) + '%'; $('staTmp').style.width = tmp + '%'; $('staTmp').className = ME.cold >= ME.heat ? 'cold' : 'hot';
   $('staFill').className = ME.boost > 0 ? 'boost' : ME.sta < 18 ? 'low' : '';
   drawCompass();
   hudAcc += dt; if (hudAcc < .25) return; hudAcc = 0;
@@ -492,7 +505,7 @@ function onStart(m) {
   Object.assign(ME, { sta: 100, inj: 0, hun: 0, ko: false, air: false, slide: false, mode: '', quick: [null, null, null], pack: [null, null, null, null, null, null], sel: 0, boost: 0, falls: 0 });
   if (ME.g) scene.remove(ME.g); ME.g = makeChar(SAVE.ch); scene.add(ME.g);
   const sp = m.late ? L.camps[m.W.cp] : L.spawn; ME.x = sp.x + (m.idx % 3) * 1.6 - 1.6; ME.z = sp.z - 2 - Math.floor(m.idx / 3) * 1.6; ME.y = getH(ME.x, ME.z); ME.ry = 0; CAM.yaw = 0; CAM.pitch = .25;
-  ME.cold = ME.heat = 0; ME.bio = -1; ME.noFall = false; REVEAL = {};
+  ME.cold = ME.heat = ME.poison = 0; ME.bio = -1; ME.noFall = false; REVEAL = {};
   phase = 'play'; ui.show('hud'); onWorld(m.W); drawInv(); toast(T('t_start'), 'ev'); audioInit(); setTimeout(lockPointer, 50);
 }
 function showWin() {

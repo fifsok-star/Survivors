@@ -4,7 +4,10 @@
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
 const ROOT = path.join(__dirname, '..');
 const FILES = ['i18n', 'world', 'gfx', 'net', 'host', 'game', 'ui'].map(n => `js/${n}.js`);
-let src = "'use strict';\n" + FILES.map(f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/^\s*'use strict';\s*$/m, '')).join('\n;\n');
+// private links: read from secrets.local.json (not in git) and stored scrambled inside the packed build only
+let secrets = {}; try { secrets = JSON.parse(fs.readFileSync(path.join(ROOT, 'secrets.local.json'), 'utf8')); } catch (e) { console.warn('no secrets.local.json - the Discord button will be hidden'); }
+const veil = t => { let k = 0x5c, o = ''; for (let i = 0; i < t.length; i++) { o += String.fromCharCode(t.charCodeAt(i) ^ k); k = (k * 31 + 7) & 255; } return Buffer.from(o, 'latin1').toString('base64'); };
+let src = "'use strict';\nconst __SECRETS__ = " + JSON.stringify({ d: secrets.discord ? veil(secrets.discord) : null }) + ";\n" + FILES.map(f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/^\s*'use strict';\s*$/m, '')).join('\n;\n');
 const raw = zlib.deflateRawSync(Buffer.from(src, 'utf8'), { level: 9 });
 // scramble with a keystream derived from the build's own salt
 const salt = (Date.now() ^ (Math.random() * 1e9)) >>> 0, out = Buffer.alloc(raw.length);

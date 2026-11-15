@@ -104,7 +104,7 @@ function insideCol(x, y, z, pad) {
   }
   return false;
 }
-const COLR = { cactus: .42, pine_snow: .42, rock_red_a: 1.1, rock_red_b: 1.25, rock_basalt: 1.1, rock_ice: 1.05, palm_a: .34, palm_b: .34, jtree_a: .64, jtree_b: .6, jtree_c: .5, rock_a: 1.1, rock_b: 1.2, rock_c: 1.0, rock_moss: 1.3, bush: .8, banana_plant: .22, stump: .64, pine: .42, deadtree: .32 };
+const COLR = { mush_giant: .45, cactus: .42, pine_snow: .42, rock_red_a: 1.1, rock_red_b: 1.25, rock_basalt: 1.1, rock_ice: 1.05, palm_a: .34, palm_b: .34, jtree_a: .64, jtree_b: .6, jtree_c: .5, rock_a: 1.1, rock_b: 1.2, rock_c: 1.0, rock_moss: 1.3, bush: .8, banana_plant: .22, stump: .64, pine: .42, deadtree: .32 };
 const COLH = { rock_red_a: 1.6, rock_red_b: 1.4, rock_basalt: 1.4, rock_ice: 1.4, rock_a: 1.5, rock_b: 1.3, rock_c: 2.2, rock_moss: 1.5, bush: 1.15, stump: .75 };
 
 // ---------------------------------------------------------------- terrain
@@ -125,13 +125,15 @@ function terrainColor(x, z, h, out) {
   for (const st of STREAMS) c = mix(c, [.45, .4, .32], (1 - sstep(st.w / 2 - 1, st.w / 2 + 2, Math.abs(z - st.z))) * (d < halfW(z) + 6 ? 1 : 0));
   if (z > Z_MAX - 30) c = mix(c, snow, sstep(Z_MAX - 30, Z_MAX - 18, z) * (1 - sstep(.9, 1.15, s) * .7));
   if (z > BIO_Z[1] - 12) {                     // the upper biomes repaint the alpine colours
-    const flat = 1 - sstep(.5, .78, s), wM = biomeW(z, 1), wS = biomeW(z, 2), wV = biomeW(z, 3);
+    const flat = 1 - sstep(.5, .78, s), wR = biomeW(z, B_ROOT), wM = biomeW(z, B_MESA), wS = biomeW(z, B_SNOW), wT = biomeW(z, B_STORM), wV = biomeW(z, B_VOLC);
+    if (wR > 0) c = mix(c, mix([.3 + n * .08, .25 + n * .06, .18], [.16 + n * .06, .3 + n * .1, .14], flat), wR);   // dark roots: moss and wet bark
     if (wM > 0) {                               // red canyon: banded sandstone, orange sand
       const band = Math.sin(h * .85 + n * 2.2), strata = band > .45 ? [.62, .27, .17] : band > -.2 ? [.82, .47, .28] : band > -.7 ? [.9, .66, .43] : [.7, .36, .22];
       c = mix(c, mix(strata, [.88 + n * .06, .63 + n * .06, .38], flat), wM);
       for (const o of OASES) c = mix(c, [.38, .6, .25], wM * (1 - sstep(o.r + 1, o.r + 5, dist2(x, z, o.x, o.z))));
     }
     if (wS > 0) c = mix(c, mix([.55 + n * .1, .6 + n * .1, .7 + n * .08], [.93 + n * .04, .96 + n * .03, 1], flat), wS);   // icy slopes
+    if (wT > 0) c = mix(c, mix([.3 + n * .06, .33 + n * .06, .4 + n * .06], n > .55 ? [.86, .9, .95] : [.5 + n * .1, .53 + n * .1, .58 + n * .08], flat), wT);   // storm ridge: slate and old snow
     if (wV > 0) {                               // volcano: ash and basalt, glowing near lava
       c = mix(c, mix([.24 + n * .08, .2 + n * .06, .21 + n * .06], [.36 + n * .08, .33 + n * .07, .33 + n * .06], flat), wV);
       for (const o of LAVA) c = mix(c, [1, .42, .1], (1 - sstep(o.r - .5, o.r + 2.2, dist2(x, z, o.x, o.z))) * wV);
@@ -268,7 +270,10 @@ function buildVegetation() {
   for (let i = 0; i < 2300 * dens; i++) {
     const z = JUNGLE_END + r() * (Z_MAX - JUNGLE_END), x = (r() * 2 - 1) * (halfW(z) + 18), h = getH(x, z), sl = slopeAt(x, z).ang;
     if (nearStation(x, z, 4.5) || sl > .6 || nearHazard(x, z, 2.5)) continue;
-    const q = r(), b = biomeAt(z), big = r() < .2 ? 1.6 + r() * 1.4 : .4 + r() * 1.1;
+    const q = r(), b0 = biomeAt(z), big = r() < .2 ? 1.6 + r() * 1.4 : .4 + r() * 1.1;
+    if (b0 === B_ROOT) { if (q < .17) put('jtree_b', x, z, 1.9 + r() * 1.3); else if (q < .32) put('mush_giant', x, z, .8 + r() * .9); else if (q < .4) put('root_arch', x, z, 1 + r() * .6); else if (q < .62) put('fern', x, z, 1.1 + r()); else if (q < .74) put('mushroom', x, z, 1.4 + r() * 1.5); else if (q < .84) put('rock_moss', x, z, big); continue; }
+    if (b0 === B_STORM) { if (q < .45) put(['rock_b', 'rock_c', 'rock_ice'][(r() * 3) | 0], x, z, big); else if (q < .55) put('deadtree', x, z, .6 + r() * .5); else if (q < .62) put('pine_snow', x, z, .6 + r() * .4); continue; }
+    const b = [0, 0, 1, 2, 2, 3][b0];
     if (b === 0) { if (q < .4) put('pine', x, z, .7 + r() * .7); else if (q < .72) put(['rock_a', 'rock_b', 'rock_c', 'rock_moss'][(r() * 4) | 0], x, z, big); else if (q < .8) put('deadtree', x, z, .7 + r() * .6, .3); else if (q < .9) put(['flower_a', 'flower_b', 'flower_c'][(r() * 3) | 0], x, z, 1.2 + r()); else put('grass', x, z, 1 + r()); }
     else if (b === 1) { if (q < .26) put('cactus', x, z, .7 + r() * .7); else if (q < .72) put(r() < .5 ? 'rock_red_a' : 'rock_red_b', x, z, big); else if (q < .82) put('deadtree', x, z, .6 + r() * .5); else if (q < .9) put('bush', x, z, .5 + r() * .4); }
     else if (b === 2) { if (q < .4) put('pine_snow', x, z, .7 + r() * .8); else if (q < .72) put(r() < .6 ? 'rock_ice' : 'rock_b', x, z, big); else if (q < .78) put('deadtree', x, z, .6 + r() * .5); }
@@ -439,9 +444,11 @@ function clearWorld() {
 function buildWorldScene() {
   clearWorld(); procModels();
   MOODS = [MOODS[0], MOODS[1], MOODS[2],
-    { z: BIO_Z[1] + 25, top: 0x3b7fd0, hor: 0xffd29c, fog: 0xebbd8c, fd: .003, sun: 0xffd48a, si: 1.45, dir: [.55, .7, -.3] },
-    { z: BIO_Z[2] + 25, top: 0x6f8fb8, hor: 0xe8eef6, fog: 0xdce6f0, fd: .0065, sun: 0xeef4ff, si: .95, dir: [.4, .6, -.5] },
-    { z: BIO_Z[3] + 25, top: 0x3a2632, hor: 0xd06a46, fog: 0x8c5a4c, fd: .005, sun: 0xff8a50, si: 1.0, dir: [.6, .45, -.5] },
+    { z: BIO_Z[1] + 20, top: 0x2f5446, hor: 0x9cc8a2, fog: 0x6c9a7a, fd: .0095, sun: 0xd8f0c0, si: .8, dir: [.4, .8, -.3] },
+    { z: BIO_Z[2] + 25, top: 0x3b7fd0, hor: 0xffd29c, fog: 0xebbd8c, fd: .003, sun: 0xffd48a, si: 1.45, dir: [.55, .7, -.3] },
+    { z: BIO_Z[3] + 25, top: 0x6f8fb8, hor: 0xe8eef6, fog: 0xdce6f0, fd: .0065, sun: 0xeef4ff, si: .95, dir: [.4, .6, -.5] },
+    { z: BIO_Z[4] + 15, top: 0x353c48, hor: 0x8794a6, fog: 0x76818f, fd: .0078, sun: 0xcfd8e6, si: .7, dir: [.3, .6, -.6] },
+    { z: BIO_Z[5] + 25, top: 0x3a2632, hor: 0xd06a46, fog: 0x8c5a4c, fd: .005, sun: 0xff8a50, si: 1.0, dir: [.6, .45, -.5] },
     { z: Z_MAX - 25, top: 0x2b3a86, hor: 0xff9a6a, fog: 0xe0a892, fd: .0022, sun: 0xff9a55, si: 1.2, dir: [.7, .26, -.6] }];
   MOODS[2].z = JUNGLE_END + 10;
   buildTerrain(); buildWater(); buildProps(); buildHazards(); buildDynamic(); buildVegetation(); buildAnimals();
@@ -455,6 +462,7 @@ function buildHazards() {
   GFX.lavaMat = new THREE.ShaderMaterial({ vertexShader: `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`, fragmentShader: LAVA_FS, uniforms: { uT: { value: 0 } } });
   for (const o of LAVA) { const g = new THREE.CircleGeometry(o.r + 1.2, 28); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, GFX.lavaMat); m.position.set(o.x, o.y, o.z); worldG.add(m); }
   for (const o of OASES) { const g = new THREE.CircleGeometry(o.r + 1.4, 28, 0, 6.2832); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, GFX.mkWater(0x6fe8e0, 0x2a9fd0, [.3, .2], 0)); m.position.set(o.x, o.y, o.z); m.renderOrder = 2; worldG.add(m); streamMats.push(m.material); }
+  GFX.spores = SPORES.map(o => { const g = new THREE.Group(); g.position.set(o.x, getH(o.x, o.z) + 1.2, o.z); for (let k = 0; k < 7; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshBasicMaterial({ color: k % 2 ? 0x5fcf2a : 0x8fe03a, transparent: true, opacity: .32, depthWrite: false })); const a = k * .9; m.position.set(Math.cos(a) * o.r * .45, .3 + (k % 3) * .5, Math.sin(a) * o.r * .45); m.scale.setScalar(o.r * (.45 + (k % 3) * .12)); m.userData.ph = k; g.add(m); } worldG.add(g); return g; });
   GFX.vents = VENTS.map((v, i) => {
     const g = new THREE.Group(); g.position.set(v.x, v.y, v.z); g.add(prop('vent', 0, 0, 0, i, 1));
     const st = new THREE.Mesh(new THREE.CylinderGeometry(.55, 1.4, 1, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5, depthWrite: false, side: THREE.DoubleSide }));
@@ -469,13 +477,21 @@ function buildHazards() {
 function updateHazards(dt, z, tWorld) {
   if (GFX.lavaMat) GFX.lavaMat.uniforms.uT.value = GFX.t;
   (GFX.vents || []).forEach((g, i) => { const on = ventOn(i, tWorld), st = g.userData.st, k = Math.min(1, dt * 6); const hT = on ? 15 : 1.2; st.scale.y += (hT - st.scale.y) * k; st.position.y = st.scale.y / 2; st.material.opacity = on ? .55 + Math.sin(GFX.t * 20) * .08 : .28; st.rotation.y += dt * 2; });
+  // lightning on the storm ridge
+  if (z > BIO_Z[4] - 10 && biomeW(z, B_STORM) > .5 && Math.random() < dt * .09) { GFX.flash = 1; setTimeout(() => sfx('thunder'), 300 + Math.random() * 900); }
+  if (GFX.flash > 0) { hemi.intensity += GFX.flash * 1.6; skyMat.uniforms.uHor.value.offsetHSL(0, 0, GFX.flash * .25); GFX.flash = Math.max(0, GFX.flash - dt * 5); }
   const w = GFX.wx; if (!w) return;
-  const wS = z > BIO_Z[1] ? biomeW(z, 2) : 0, wV = z > BIO_Z[1] ? biomeW(z, 3) : 0, a = Math.max(wS, wV);
+  (GFX.spores || []).forEach(g => g.children.forEach(m => { const k = m.userData.ph; m.position.y = .3 + (k % 3) * .5 + Math.sin(GFX.t * .7 + k) * .35; m.rotation.y += dt * .2; m.material.opacity = .28 + Math.sin(GFX.t + k) * .06; }));
+  // weather: roots = drifting spores, snow = snowfall, storm = slanted rain, volcano = ash
+  const up = z > BIO_Z[1] - 12, wt = up ? [0, biomeW(z, B_ROOT) * .6, 0, biomeW(z, B_SNOW), biomeW(z, B_STORM), biomeW(z, B_VOLC)] : [0, 0, 0, 0, 0, 0];
+  let kind = 0; for (let k = 1; k < 6; k++) if (wt[k] > wt[kind]) kind = k; const a = wt[kind];
   w.material.opacity = a * .9; w.visible = a > .01; if (!w.visible) return;
-  w.material.color.setHex(wS >= wV ? 0xffffff : 0x4a4044); w.material.size = wS >= wV ? .16 : .11;
-  const p = w.geometry.attributes.position.array, sp = wS >= wV ? 2.2 : 1.1, cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
+  const WX_ = { 1: [0xb8f06a, .12, -.35], 3: [0xffffff, .16, 2.2], 4: [0xb8c6d8, .09, 14], 5: [0x4a4044, .11, 1.1] }[kind] || [0xffffff, .1, 1];
+  w.material.color.setHex(WX_[0]); w.material.size = WX_[1];
+  const gust = kind === 4 && tWorld != null ? gustAt(tWorld) : null, drift = kind === 4 ? (gust && gust.on ? gust.dir * 9 : 3) : .4;
+  const p = w.geometry.attributes.position.array, sp = WX_[2], cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
   for (let i = 0; i < p.length; i += 3) {
-    p[i + 1] -= sp * dt * (1 + (i % 7) * .08); p[i] += Math.sin(GFX.t + i) * dt * .4;
+    p[i + 1] -= sp * dt * (1 + (i % 7) * .08); p[i] += (kind === 4 ? drift : Math.sin(GFX.t + i) * drift) * dt;
     if (p[i + 1] < cy - 20) p[i + 1] += 40; if (p[i + 1] > cy + 20) p[i + 1] -= 40;
     if (p[i] < cx - 30) p[i] += 60; if (p[i] > cx + 30) p[i] -= 60; if (p[i + 2] < cz - 30) p[i + 2] += 60; if (p[i + 2] > cz + 30) p[i + 2] -= 60;
   }
@@ -496,6 +512,8 @@ function procModels() {
   grp('rock_basalt', [[rock(1, 7, 0), '#3d3639', 0, .65, 0, 0, 0, 0, 1.2, .9, 1.05], [rock(.5, 8, 0), '#2a2527', .75, .3, .35]]);
   grp('rock_ice', [[rock(1, 9), '#cfe6f6', 0, .65, 0, 0, 0, 0, 1.2, .85, 1.1], [rock(.6, 10), '#9fc2dd', .7, .35, .2], [rock(.75, 11), '#ffffff', -.1, 1.15, 0, 0, 0, 0, 1.1, .35, 1]]);
   grp('vent', [[cyl(1.15, 1.4, .35, 14), '#2a2527', 0, .1], [cyl(.75, .75, .38, 14), '#d8c34a', 0, .12], [cyl(.55, .55, .4, 12), '#141012', 0, .13], ...[0, 1, 2, 3, 4, 5].map(k => [rock(.4, 20 + k, 0), '#3d3639', Math.cos(k) * 1.45, .2, Math.sin(k) * 1.45])]);
+  grp('mush_giant', [[cyl(.32, .45, 2.6, 10), '#efe6d6', 0, 1.3], [new THREE.SphereGeometry(1.5, 14, 8, 0, 6.2832, 0, 1.45), '#8a4fc2', 0, 2.25, 0, 0, 0, 0, 1, .62, 1], [cyl(1.38, 1.38, .1, 14), '#d8c8f0', 0, 2.3], ...[0, 1, 2, 3, 4].map(k => [sph(.16, 6, 4), '#f4e66a', Math.cos(k * 1.3) * .9, 2.95 - (k % 2) * .2, Math.sin(k * 1.3) * .9])]);
+  grp('root_arch', [[new THREE.TorusGeometry(1.8, .32, 7, 14, Math.PI), '#4a3424', 0, 0, 0, 0, 0, 0], [new THREE.TorusGeometry(1.2, .22, 6, 12, Math.PI), '#5a3b26', .9, 0, .7, 0, .6, 0], [sph(.42, 8, 6), '#2f5a2a', -1.8, .2, 0, 0, 0, 0, 1.3, .6, 1.2]]);
   grp('it_tea', [[cyl(.08, .08, .3, 10), '#c9d2da', 0, .15], [cyl(.085, .085, .1, 10), '#d8403a', 0, .34], [cyl(.084, .084, .06, 10), '#2e6fc4', 0, .12]]);
   ['#c0353a', '#2e6fc4', '#3f9a4a', '#e0a020'].forEach((c, k) => {
     grp('bag_base_' + k, [[new THREE.BoxGeometry(.9, .24, .6), c, 0, .12], [new THREE.BoxGeometry(.92, .03, .62), '#59616b', 0, .24], [new THREE.BoxGeometry(.06, .25, .62), '#3a2a22', -.3, .125], [new THREE.BoxGeometry(.06, .25, .62), '#3a2a22', .3, .125]]);

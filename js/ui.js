@@ -1,6 +1,12 @@
 // Survivors - menus, lobby, settings, input, boot.
 'use strict';
-const DISCORD_URL = 'https://discord.gg/AYHFQ3yr2';
+// private links (Discord invite) are not in the source code: tools/build.js injects them, scrambled, into the packed game
+// from secrets.local.json (kept out of git). In dev mode the file is read from the local server.
+const SECRETS = { d: typeof __SECRETS__ !== 'undefined' ? __SECRETS__.d : null };
+function unveil(v) { if (!v) return null; const b = atob(v); let k = 0x5c, o = ''; for (let i = 0; i < b.length; i++) { o += String.fromCharCode(b.charCodeAt(i) ^ k); k = (k * 31 + 7) & 255; } return o; }
+function openDiscord() { const u = unveil(SECRETS.d); if (u) window.open(u, '_blank', 'noopener'); }
+function loadDevSecrets() { if (SECRETS.d) return Promise.resolve(); return fetch('secrets.local.json').then(r => r.ok ? r.json() : null).then(j => { if (j && j.discord) SECRETS.d = veil(j.discord); }).catch(() => { }); }
+function veil(t) { let k = 0x5c, o = ''; for (let i = 0; i < t.length; i++) { o += String.fromCharCode(t.charCodeAt(i) ^ k); k = (k * 31 + 7) & 255; } return btoa(o); }
 const ui = { paused: false, cur: 'loading', thumbs: [],
   show(n) { ui.cur = n; for (const s of ['loading', 'menu', 'lobby', 'hud', 'win']) $(s).style.display = s === n ? (s === 'hud' ? 'block' : 'flex') : 'none'; ui.pause(false); $('logoBg').style.display = n === 'hud' ? 'none' : 'block'; },
   pause(v) { ui.paused = v; $('pause').style.display = v ? 'flex' : 'none'; if (!v) $('settings').style.display = 'none'; },
@@ -77,7 +83,7 @@ function bindInput() {
   $('btnCopy').onclick = () => { try { navigator.clipboard.writeText(Net.code); toast(T('t_copied')); } catch (e) { } };
   for (const b of document.querySelectorAll('.btnSettings')) b.onclick = () => { $('settings').style.display = 'flex'; };
   $('btnSetClose').onclick = () => { $('settings').style.display = 'none'; };
-  for (const b of document.querySelectorAll('.btnDiscord')) b.onclick = () => window.open(DISCORD_URL, '_blank', 'noopener');
+  for (const b of document.querySelectorAll('.btnDiscord')) { b.onclick = openDiscord; b.style.display = SECRETS.d ? '' : 'none'; }
   $('btnHow').onclick = () => { $('how').style.display = 'flex'; }; $('btnHowClose').onclick = () => { $('how').style.display = 'none'; };
   $('btnResume').onclick = () => { ui.pause(false); lockPointer(); };
   $('btnRespawn').onclick = () => { ME.inj = Math.min(90, ME.inj + 10); respawn(); ui.pause(false); };
@@ -85,6 +91,7 @@ function bindInput() {
   $('mapview').onclick = () => { if (mapOpen >= 0) showMap(mapOpen); };
 }
 async function boot() {
+  await loadDevSecrets();
   LANG = SAVE.lang || detectLang(); setLang(LANG); $('howText').textContent = T('how_text');
   $('name').value = SAVE.name; $('code').value = (/[?&]join=(\w+)/.exec(location.search) || [])[1] || SAVE.code || '';
   const bar = v => { $('loadFill').style.width = Math.round(v * 100) + '%'; }, tick = () => new Promise(r => setTimeout(r, 15));

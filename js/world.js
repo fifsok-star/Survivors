@@ -9,10 +9,10 @@ function hash2(ix, iz, s) { let h = Math.imul(ix, 374761393) + Math.imul(iz, 668
 function vnoise(x, z, s) { const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz); return lerp(lerp(hash2(ix, iz, s), hash2(ix + 1, iz, s), u), lerp(hash2(ix, iz + 1, s), hash2(ix + 1, iz + 1, s), u), v); }
 function fbm(x, z, s) { return vnoise(x, z, s) * .55 + vnoise(x * 2.1, z * 2.1, s + 7) * .3 + vnoise(x * 4.3, z * 4.3, s + 13) * .15; }
 
-const WB = { x0: -150, x1: 150, z0: -100, z1: 1060, c: 2 };
+const WB = { x0: -150, x1: 150, z0: -100, z1: 1260, c: 2 };
 const JUNGLE_END = 335;
 // everything below is regenerated from a seed by genWorld(): every game gets a new jungle, new tasks order and a new mountain
-let SEED = -1, NS = 0, PA = [26, 52, 10, 21, 1.3, 0], HWP = 0, STREAMS = [], GATE_Z = 132, TREE_Z = 196, Z_MAX = 545, WALLS = [], WX = [], LAVA = [], OASES = [], VENTS = [], BIO_Z = [335, 1e9, 1e9, 1e9], PITS = [], OBST = [], L = null;
+let SEED = -1, NS = 0, PA = [26, 52, 10, 21, 1.3, 0], HWP = 0, STREAMS = [], GATE_Z = 132, TREE_Z = 196, Z_MAX = 545, WALLS = [], WX = [], LAVA = [], OASES = [], VENTS = [], SPORES = [], BIO_Z = [335, 1e9, 1e9, 1e9, 1e9, 1e9], PITS = [], OBST = [], L = null;
 
 function pathX(z) { const a = sstep(45, 80, z) * (1 - sstep(300, 335, z)); return a * (PA[0] * Math.sin(z / PA[1] + PA[5]) + PA[2] * Math.sin(z / PA[3] + PA[4])); }
 function halfW(z) {
@@ -20,6 +20,7 @@ function halfW(z) {
   for (const zb of [GATE_Z, TREE_Z]) w = lerp(5, w, sstep(3, 16, Math.abs(z - zb)));
   if (z > JUNGLE_END - 20) w = lerp(w, 26, sstep(JUNGLE_END - 20, JUNGLE_END + 10, z));
   if (z > JUNGLE_END) w = lerp(w, 44 + 7 * Math.sin(z / 41 + HWP), sstep(JUNGLE_END, JUNGLE_END + 30, z));   // the mountain is wide: plateaus, not a corridor
+  if (z > BIO_Z[4] - 12) w *= 1 - .42 * biomeW(z, 4);                       // the storm ridge is narrow and exposed
   return lerp(92, w, sstep(38, 64, z));
 }
 // ---- mountain walls. Each wall: [start z, run, rise] in WALLS and its shape in WX:
@@ -51,11 +52,14 @@ function wallH(z, x) {
   return h;
 }
 function wallEnd(i, x) { return WALLS[i][0] + wallOff(i, x) + wallLen(i, x); }
-// biomes on the way up: 0 alpine meadows, 1 red canyon (heat), 2 icy slopes (cold), 3 volcano (lava, steam vents); -1 = beach / jungle
-const BIOMES = ['alpine', 'mesa', 'snow', 'volcano'];
-function biomeAt(z) { if (z < JUNGLE_END - 5) return -1; let b = 0; while (b < 3 && z >= BIO_Z[b + 1]) b++; return b; }
-function biomeW(z, b) { const z0 = BIO_Z[b], z1 = b < 3 ? BIO_Z[b + 1] : 1e9; return sstep(z0 - 9, z0 + 9, z) * (1 - sstep(z1 - 9, z1 + 9, z)); }
-const wallBiome = i => i < 3 ? 0 : i < 6 ? 1 : i < 9 ? 2 : 3;
+// biomes on the way up (-1 = beach / jungle):
+// 0 alpine meadows, 1 dark roots (fog, poison spores), 2 red canyon (heat, oases), 3 icy slopes (cold), 4 storm ridge (wind gusts, lightning), 5 volcano (lava, steam vents)
+const BIOMES = ['alpine', 'roots', 'mesa', 'snow', 'storm', 'volcano'], B_ALP = 0, B_ROOT = 1, B_MESA = 2, B_SNOW = 3, B_STORM = 4, B_VOLC = 5;
+const WALL_BIO = [0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5], BIO_FIRST = [0, 3, 5, 8, 11, 13];
+function biomeAt(z) { if (z < JUNGLE_END - 5) return -1; let b = 0; while (b < 5 && z >= BIO_Z[b + 1]) b++; return b; }
+function biomeW(z, b) { const z0 = BIO_Z[b], z1 = b < 5 ? BIO_Z[b + 1] : 1e9; return sstep(z0 - 9, z0 + 9, z) * (1 - sstep(z1 - 9, z1 + 9, z)); }
+const wallBiome = i => WALL_BIO[i];
+function gustAt(t) { const k = Math.floor(t / 11), on = (t % 11) < 3.6; return { on, dir: Math.sin(k * 12.9898 + SEED % 1000) > 0 ? 1 : -1 }; }
 function rawH(x, z) {
   const px = pathX(z), d = Math.abs(x - px), hw = halfW(z);
   let h = -5 + 7.5 * sstep(-78, -22, z);
@@ -111,48 +115,49 @@ function genTry(seed, k) {
   OBST = kinds.map((k, i) => ({ k, z: slots[i] }));
   const zOf = k => OBST.find(o => o.k === k).z;
   STREAMS = [{ z: zOf('s0'), w: 9, logs: 2, rope: false }, { z: zOf('s1'), w: 11, logs: 3, rope: true }]; GATE_Z = zOf('gate'); TREE_Z = zOf('tree');
-  // mountain: twelve walls in four biomes, with shelves and ramps, separated by wide rolling plateaus
-  const base = [10, 18, 24, 28, 30, 34, 36, 38, 40, 42, 46, 50]; let z = 350 + r() * 5; WALLS = []; WX = [];
+  // mountain: sixteen walls in six biomes, with shelves and ramps, separated by wide rolling plateaus
+  const base = [10, 18, 24, 26, 28, 30, 32, 34, 36, 38, 40, 40, 42, 44, 46, 50]; let z = 350 + r() * 5; WALLS = []; WX = [];
   for (let i = 0; i < base.length; i++) {
-    const bi = wallBiome(i), rise = base[i] * (.82 + r() * .38);
-    const run = Math.max(5, rise / (bi === 1 || bi === 3 ? 4.3 : Math.min(4.3, 2.2 + i * .25 + r() * .45)));
-    const W = { a1: bi === 1 ? 1.5 + r() * 1.5 : 2.5 + r() * 4, f1: 7 + r() * 8, p1: r() * 6.28, p2: r() * 6.28, sh: [], ramp: null };
-    const nsh = i === 0 ? 0 : bi === 1 ? 2 + (r() < .5 ? 1 : 0) : bi === 3 ? 1 : rise > 30 && r() < .6 ? 2 : 1;
+    const bi = wallBiome(i), rise = base[i] * (.82 + r() * .38), steep = bi === B_MESA || bi === B_STORM || bi === B_VOLC;
+    const run = Math.max(5, rise / (steep ? 4.3 : Math.min(4.3, 2.2 + i * .2 + r() * .45)));
+    const W = { a1: bi === B_MESA ? 1.5 + r() * 1.5 : bi === B_STORM ? 3 + r() * 4 : 2.5 + r() * 4, f1: 7 + r() * 8, p1: r() * 6.28, p2: r() * 6.28, sh: [], ramp: null };
+    const nsh = i === 0 ? 0 : bi === B_MESA ? 2 + (r() < .5 ? 1 : 0) : bi === B_STORM ? 2 : bi === B_VOLC ? 1 : rise > 30 && r() < .6 ? 2 : 1;
     for (let k = 0; k < nsh; k++) {
-      const t = nsh === 1 ? (bi === 3 ? .24 + r() * .16 : .38 + r() * .3) : (k + .55 + r() * .3) / (nsh + .4), w = (bi === 1 ? 22 : 14) + r() * 26, c = (r() * 2 - 1) * 26;
-      W.sh.push({ t, d: (bi === 1 ? 3.2 : 2.6) + r() * 2.2, x0: c - w / 2, x1: c + w / 2 });
+      const t = nsh === 1 ? (bi === B_VOLC ? .24 + r() * .16 : .38 + r() * .3) : (k + .55 + r() * .3) / (nsh + .4), w = (bi === B_MESA ? 22 : bi === B_STORM ? 10 : 14) + r() * 26, c = (r() * 2 - 1) * (bi === B_STORM ? 14 : 26);
+      W.sh.push({ t, d: (bi === B_MESA ? 3.2 : bi === B_STORM ? 2.2 : 2.6) + r() * 2.2, x0: c - w / 2, x1: c + w / 2 });
     }
-    const rampP = [.55, 0, .85, .25][bi];
-    if (nsh && r() < rampP) {                                      // scree / snow ramp to the first shelf: walkable, longer, costs stamina
-      const s0 = W.sh[0], rw = 6 + r() * 4, rx = r() < .5 ? s0.x0 + 1 : s0.x1 - 1 - rw, cap = bi === 2 ? 32 : 26;
+    const rampP = [.55, .7, 0, .85, 0, .25][bi];
+    if (nsh && r() < rampP) {                                      // scree / root / snow ramp to the first shelf: walkable, longer, costs stamina
+      const s0 = W.sh[0], rw = 6 + r() * 4, rx = r() < .5 ? s0.x0 + 1 : s0.x1 - 1 - rw, cap = bi === B_SNOW ? 32 : 26;
       s0.t = Math.max(.2, Math.min(s0.t, cap * .45 / rise));
       W.ramp = { x0: rx, x1: rx + rw, len: rise * s0.t / .45 };
     }
     WALLS.push([z, run, rise]); WX.push(W);
     const longest = run + W.sh.reduce((a, b) => a + b.d, 0) + (W.ramp ? W.ramp.len : 0) + 7;
-    z += Math.max(longest + 10, run + 20 + r() * 12) + (bi === 3 ? 6 : bi === 1 ? 3 : 0);
+    z += Math.max(longest + 10, run + 20 + r() * 12) + [0, 4, 3, 0, 0, 6][bi];
   }
   const NW = WALLS.length;
   Z_MAX = Math.max(...[-30, -15, 0, 15, 30].map(x => wallEnd(NW - 1, x))) + 34;
-  BIO_Z = [JUNGLE_END, 0, 0, 0];
-  for (let b = 1; b < 4; b++) BIO_Z[b] = (wallEnd(3 * b - 1, 0) + WALLS[3 * b][0] + wallOff(3 * b, 0)) / 2;
+  BIO_Z = [JUNGLE_END, 0, 0, 0, 0, 0];
+  for (let b = 1; b < 6; b++) { const f = BIO_FIRST[b]; BIO_Z[b] = (wallEnd(f - 1, 0) + WALLS[f][0] + wallOff(f, 0)) / 2; }
   const pitLedge = 1 + ((r() * 2) | 0), leverLedge = pitLedge + 1;
   const pitSide = sg(), pz = OBST[2].z + 16, pEnd = wallEnd(pitLedge, -14);
   PITS = [{ x: pathX(pz) + 10 * pitSide, z: pz, r: 3.6, d: 8 }, { x: -14, z: (pEnd + WALLS[pitLedge + 1][0] + wallOff(pitLedge + 1, -14)) / 2, r: 3.6, d: 8 }];
   const offRamp = (wi, x) => { const rp = WX[wi].ramp; return !rp || x < rp.x0 - 6 || x > rp.x1 + 6; };
   // mountain campfires (checkpoints): foot, then the plateau above these walls; x chosen away from ramps, the pit and the levers
-  const campWalls = [1, 2, 4, 5, 7, 8, 10], campXZ = [[6, 342]];
+  const campWalls = [1, 2, 4, 6, 7, 9, 10, 12, 14], campXZ = [[6, 342]];
   for (const wi of campWalls) { let x = wi === pitLedge ? 6 : wi === leverLedge ? -10 : 0; if (!x) for (let q = 0; q < 20; q++) { x = sg() * (3 + r() * 9); if (offRamp(wi, x) && (wi + 1 >= NW || offRamp(wi + 1, x))) break; } campXZ.push([x, ledgeZ(wi, x) + 3]); }
   const stakeXZ = [];
   for (let wi = 2; wi < NW; wi++) { let x = 0; for (let q = 0; q < 30; q++) { x = (wi === pitLedge ? 1 : wi === leverLedge ? -1 : sg()) * (3 + r() * 11); if (offRamp(wi, x) && Math.min(...campXZ.map(c => Math.abs(c[0] - x) + Math.abs(c[1] - wallEnd(wi, x) - 6.5))) > 6) break; } stakeXZ.push([x, wallEnd(wi, x) + 6.5, wi]); }
   const resv = [...campXZ, ...stakeXZ, [8, ledgeZ(leverLedge, 8) + 7, 0, 9], [PITS[1].x, PITS[1].z, 0, 6], [16, ledgeZ(5, 16) + 4], [-14, ledgeZ(4, -14) + 2]];
   const busy = (x, z, m) => resv.some(c => dist2(c[0], c[1], x, z) < m + (c[3] || 0));
   const plateau = i => { const x = (r() * 2 - 1) * 24, z0 = wallEnd(i, x) + 6, z1 = WALLS[i + 1] ? WALLS[i + 1][0] + wallOff(i + 1, x) - 6 : Z_MAX - 30; return z1 > z0 + 4 ? [x, z0 + r() * (z1 - z0)] : null; };
-  OASES = []; LAVA = []; VENTS = [];
-  for (const i of [2, 3, 4, 5]) for (let q = 0; q < 16; q++) { const p = plateau(i), rr = 4 + r() * 1.5; if (p && p[1] > BIO_Z[1] + rr + 4 && p[1] < BIO_Z[2] - rr - 4 && !busy(p[0], p[1], rr + 8)) { OASES.push({ x: p[0], z: p[1], r: rr }); break; } }
-  for (const i of [8, 9, 9, 10, 10, 11]) for (let q = 0; q < 16; q++) { const p = plateau(i), rr = 4.5 + r() * 3.5; if (p && p[1] > BIO_Z[3] + rr + 4 && p[1] < Z_MAX - 40 && !busy(p[0], p[1], rr + 9) && !LAVA.some(l => dist2(l.x, l.z, p[0], p[1]) < l.r + rr + 6)) { LAVA.push({ x: p[0], z: p[1], r: rr }); break; } }
+  OASES = []; LAVA = []; VENTS = []; SPORES = [];
+  for (const i of [2, 3, 3, 4]) for (let q = 0; q < 16; q++) { const p = plateau(i), rr = 3.5 + r() * 1.8; if (p && p[1] > BIO_Z[1] + rr + 2 && p[1] < BIO_Z[2] - rr - 2 && !busy(p[0], p[1], rr + 5) && !SPORES.some(o => dist2(o.x, o.z, p[0], p[1]) < o.r + rr + 4)) { SPORES.push({ x: p[0], z: p[1], r: rr }); break; } }
+  for (const i of [4, 5, 6, 7]) for (let q = 0; q < 16; q++) { const p = plateau(i), rr = 4 + r() * 1.5; if (p && p[1] > BIO_Z[2] + rr + 4 && p[1] < BIO_Z[3] - rr - 4 && !busy(p[0], p[1], rr + 8)) { OASES.push({ x: p[0], z: p[1], r: rr }); break; } }
+  for (const i of [12, 13, 13, 14, 14, 15]) for (let q = 0; q < 16; q++) { const p = plateau(i), rr = 4.5 + r() * 3.5; if (p && p[1] > BIO_Z[5] + rr + 4 && p[1] < Z_MAX - 40 && !busy(p[0], p[1], rr + 9) && !LAVA.some(l => dist2(l.x, l.z, p[0], p[1]) < l.r + rr + 6)) { LAVA.push({ x: p[0], z: p[1], r: rr }); break; } }
   // steam vents at the foot of volcano walls: they throw you up onto the first shelf
-  for (let i = 9; i < NW; i++) { const sh = WX[i].sh[0]; if (!sh) continue; for (let q = 0; q < 6; q++) { const x = clamp((sh.x0 + sh.x1) / 2 + (r() * 2 - 1) * 6, sh.x0 + 3, sh.x1 - 3), z = WALLS[i][0] + wallOff(i, x) - 2.6; if (offRamp(i, x) && !busy(x, z, 4) && !LAVA.some(l => dist2(l.x, l.z, x, z) < l.r + 4)) { VENTS.push({ x, z, wi: i }); resv.push([x, z, 0, 2]); break; } } }
+  for (let i = BIO_FIRST[5]; i < NW; i++) { const sh = WX[i].sh[0]; if (!sh) continue; for (let q = 0; q < 6; q++) { const x = clamp((sh.x0 + sh.x1) / 2 + (r() * 2 - 1) * 6, sh.x0 + 3, sh.x1 - 3), z = WALLS[i][0] + wallOff(i, x) - 2.6; if (offRamp(i, x) && !busy(x, z, 4) && !LAVA.some(l => dist2(l.x, l.z, x, z) < l.r + 4)) { VENTS.push({ x, z, wi: i }); resv.push([x, z, 0, 2]); break; } } }
   for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) HG[j * GW + i] = rawH(WB.x0 + i * WB.c, WB.z0 + j * WB.c);
   // nudge mountain campfires onto the flattest nearby ground
   for (let k = 0; k < campXZ.length; k++) { const c = campXZ[k]; let best = null, bs = 9; for (let dz = 0; dz <= 10; dz += 1) for (let dx = -4; dx <= 4; dx += 2) { const x = c[0] + dx, z = c[1] + dz, a = slopeAt(x, z).ang + Math.abs(dx) * .01 + dz * .01; if (a < bs && ![...LAVA, ...OASES].some(l => dist2(l.x, l.z, x, z) < l.r + 8) && !stakeXZ.some(st => dist2(st[0], st[1], x, z) < 4)) { bs = a; best = [x, z]; } } if (best) campXZ[k] = best; }
@@ -191,7 +196,7 @@ function genTry(seed, k) {
   o.radio = P(4, Z_MAX - 13); o.heli = P(-10, Z_MAX - 11);
   const ca = OBST[1].z + 12, cb = OBST[3].z + 14;
   o.crates = [P(-18 * sg(), 20), P(pathX(ca) + 9 * sg(), ca), P(pathX(cb) + 9 * sg(), cb), (x => P(x, ledgeZ(0, x) + 2))(-16 * sg()), P(-14, ledgeZ(4, -14) + 2)];
-  o.vents = VENTS; o.lava = LAVA; o.oases = OASES;
+  o.vents = VENTS; o.lava = LAVA; o.oases = OASES; o.spores = SPORES;
   // ---- lost luggage: hidden off the path, at the far ends of shelves and in plateau corners
   const taken = [o.plane, o.tail, o.wing, o.lookout, o.gate, o.vault, o.tree, o.leverChest, o.tablet, o.radio, o.heli, ...o.camps, ...o.totems, ...o.plates, ...o.logs, ...o.stakes, ...o.levers, ...o.digs, ...o.crates, ...o.pitChests];
   const freeAt = (x, z) => { const y = getH(x, z); if (y < .6 || slopeAt(x, z).ang > .55) return false; if (taken.some(p => dist2(p.x, p.z, x, z) < 4)) return false;
@@ -215,7 +220,7 @@ function worldOK() {
   L.logs.forEach(p => add(p, .7, true)); L.stakes.forEach(p => add(p, .7, true)); L.levers.forEach(p => add(p, .6, true)); add(L.leverChest, .6, true); L.digs.forEach(p => add(p, .6, true));
   add(L.radio, .6, true); add(L.heli, .6, true); L.crates.forEach(p => add(p, .7, true));
   if (!ok) return false;
-  for (const p of [...L.lava, ...L.oases]) for (const q of pts) if (dist2(q.x, q.z, p.x, p.z) < p.r + 3) return false;
+  for (const p of [...L.lava, ...L.oases, ...L.spores]) for (const q of pts) if (dist2(q.x, q.z, p.x, p.z) < p.r + 3) return false;
   if (L.vents.length < 1) return false;
   for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) if (dist2(pts[i].x, pts[i].z, pts[j].x, pts[j].z) < 2.6 && !(L.levers.includes(pts[i]) && L.levers.includes(pts[j]))) return false;
   for (const p of L.pits) { if (p.top - p.y < 6) return false; for (const q of pts) if (!L.stakes.includes(q) && dist2(q.x, q.z, p.x, p.z) < p.r + 3.2) return false; }
@@ -249,8 +254,8 @@ function newWorld(nPlayers) {
   it('piton', -5, 342); it('piton', 9, 341); it('piton', -8, ledgeZ(1, -8)); it('piton', 12, ledgeZ(2, 12) - 1); it('can', 3, ledgeZ(1, 3) + 2); it('banana', -11, ledgeZ(4, -11)); it('drink', 9, ledgeZ(5, 9));
   it('piton', -3, ledgeZ(4, -3) + 1); it('piton', 6, ledgeZ(5, 6) + 1); it('medkit', -5, ledgeZ(3, -5) + 1);
   WX.forEach((w, i) => w.sh.forEach((sh, k) => { if ((i + k) % 2) return; const x = (sh.x0 + sh.x1) / 2, u = WALLS[i][1] * sh.t; let zz = WALLS[i][0] + wallOff(i, x); for (let q = 0; q < 200 && wallH(zz, x) - wallH(WALLS[i][0] - 9, x) < WALLS[i][2] * sh.t - .05; q++) zz += .25; it(['banana', 'piton', 'drink', 'can'][(i + k) % 4], x, zz + Math.min(1.2, sh.d / 3)); }));
-  for (let i = 3; i < WALLS.length; i++) { const bi = wallBiome(i), x = (r() * 2 - 1) * 18, pool = [['drink', 'coconut', 'piton'], ['drink', 'drink', 'can', 'piton'], ['tea', 'flare', 'tea', 'piton', 'can'], ['drink', 'medkit', 'piton', 'tea']][bi]; it(pool[(r() * pool.length) | 0], x, ledgeZ(i, x) + 2 + r() * 8); }
-  const LOOT = { '-1': ['banana', 'coconut', 'can', 'rope', 'medkit', 'flare', 'compass', 'drink'], 0: ['piton', 'rope', 'can', 'drink', 'medkit', 'banana'], 1: ['drink', 'drink', 'coconut', 'piton', 'medkit', 'can'], 2: ['tea', 'tea', 'flare', 'can', 'piton', 'rope'], 3: ['drink', 'medkit', 'piton', 'rope', 'tea', 'can'] };
+  for (let i = 3; i < WALLS.length; i++) { const bi = wallBiome(i), x = (r() * 2 - 1) * 14, pool = [['drink', 'coconut', 'piton'], ['medkit', 'banana', 'piton'], ['drink', 'drink', 'can', 'piton'], ['tea', 'flare', 'tea', 'piton', 'can'], ['tea', 'piton', 'rope', 'can'], ['drink', 'medkit', 'piton', 'tea']][bi]; it(pool[(r() * pool.length) | 0], x, ledgeZ(i, x) + 2 + r() * 8); }
+  const LOOT = { '-1': ['banana', 'coconut', 'can', 'rope', 'medkit', 'flare', 'compass', 'drink'], 0: ['piton', 'rope', 'can', 'drink', 'medkit', 'banana'], 1: ['medkit', 'medkit', 'banana', 'piton', 'rope', 'can'], 2: ['drink', 'drink', 'coconut', 'piton', 'medkit', 'can'], 3: ['tea', 'tea', 'flare', 'can', 'piton', 'rope'], 4: ['tea', 'piton', 'piton', 'rope', 'can', 'drink'], 5: ['drink', 'medkit', 'piton', 'rope', 'tea', 'can'] };
   W.bags = L.bags.map(b => { const pool = LOOT[b.b], n = 2 + (r() < .45 ? 1 : 0), loot = []; for (let k = 0; k < n; k++) loot.push(pool[(r() * pool.length) | 0]); return { loot }; });
   W.logs = L.logs.map((g, i) => ({ id: i, x: g.x, z: g.z, ry: r() * 3, len: g.len, need: Math.min(g.need, Math.max(1, nPlayers)), car: [], br: -1, slot: 0 }));
   W.bridges = STREAMS.map(() => ({ logs: 0, rope: false, done: false }));
