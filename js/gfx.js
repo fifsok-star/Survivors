@@ -14,7 +14,7 @@ function initRenderer(canvas) {
   hemi = new THREE.HemisphereLight(0xcfeaff, 0x8a8f5a, .62); scene.add(hemi);
   amb = new THREE.AmbientLight(0xffffff, .18); scene.add(amb);
   sun = new THREE.DirectionalLight(0xfff2d8, 1.25); scene.add(sun); scene.add(sun.target);
-  const sc = sun.shadow.camera; sc.left = -45; sc.right = 45; sc.top = 45; sc.bottom = -45; sc.near = 1; sc.far = 260; sun.shadow.bias = -.0005; sun.shadow.normalBias = .06;
+  const sc = sun.shadow.camera; sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34; sc.near = 1; sc.far = 260; sun.shadow.bias = -.0005; sun.shadow.normalBias = .06;
   gradMap = new THREE.DataTexture(new Uint8Array([105, 165, 215, 255]), 4, 1, THREE.LuminanceFormat);
   gradMap.minFilter = gradMap.magFilter = THREE.NearestFilter; gradMap.needsUpdate = true;
   worldG = new THREE.Group(); scene.add(worldG);
@@ -23,12 +23,20 @@ function initRenderer(canvas) {
 }
 function resizeRenderer() {
   const q = [.6, .8, 1, 1.25][SET.quality] || 1;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * q);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5) * q * (GFX.res || 1));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   camera.aspect = window.innerWidth / window.innerHeight; camera.fov = SET.fov; camera.updateProjectionMatrix();
 }
+// adaptive resolution: if frames get slow, render at a slightly lower resolution (and back up when there's headroom)
+GFX.res = 1; let resAcc = 0, resN = 0, resT = 0;
+function adaptRes(dt) {
+  resAcc += dt; resN++; resT += dt; if (resT < 1.5) return;
+  const avg = resAcc / resN; resAcc = resN = resT = 0; let r = GFX.res;
+  if (avg > 1 / 42) r = Math.max(.55, r * .87); else if (avg < 1 / 57) r = Math.min(1, r * 1.07);
+  if (Math.abs(r - GFX.res) > .02) { GFX.res = r; resizeRenderer(); }
+}
 function applyGfxSettings() {
-  renderer.shadowMap.enabled = SET.shadows > 0; sun.castShadow = SET.shadows > 0;
+  renderer.shadowMap.enabled = SET.shadows > 0; sun.castShadow = SET.shadows > 0; renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true;
   const ms = SET.shadows > 1 ? 2048 : 1024;
   if (sun.shadow.mapSize.x !== ms) { sun.shadow.mapSize.set(ms, ms); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
   renderer.toneMappingExposure = .55 + SET.bright / 100 * .9;
@@ -150,8 +158,15 @@ function buildTerrain() {
   for (let j = 0; j < GH - 1; j++) for (let i = 0; i < GW - 1; i++) { const a = j * GW + i, b = a + 1, c = a + GW, d = c + 1; I.push(a, c, b, b, c, d); }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('color', new THREE.BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();
-  terrainMesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
-  terrainMesh.receiveShadow = true; worldG.add(terrainMesh);
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), T = 60, N = g.attributes.normal.array;
+  terrainMesh = new THREE.Mesh(g, mat);          // kept (not drawn) for code that reads the whole terrain
+  for (let tj = 0; tj < GH - 1; tj += T) for (let ti = 0; ti < GW - 1; ti += T) {
+    const w = Math.min(T, GW - 1 - ti) + 1, h = Math.min(T, GH - 1 - tj) + 1, p = new Float32Array(w * h * 3), c = new Float32Array(w * h * 3), n = new Float32Array(w * h * 3), idx = [];
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const src = ((tj + j) * GW + ti + i) * 3, dst = (j * w + i) * 3; for (let k = 0; k < 3; k++) { p[dst + k] = P[src + k]; c[dst + k] = C[src + k]; n[dst + k] = N[src + k]; } }
+    for (let j = 0; j < h - 1; j++) for (let i = 0; i < w - 1; i++) { const a = j * w + i, b = a + 1, cc = a + w, d = cc + 1; idx.push(a, cc, b, b, cc, d); }
+    const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.BufferAttribute(p, 3)); tg.setAttribute('color', new THREE.BufferAttribute(c, 3)); tg.setAttribute('normal', new THREE.BufferAttribute(n, 3)); tg.setIndex(idx); tg.computeBoundingSphere();
+    const tm = new THREE.Mesh(tg, mat); tm.receiveShadow = true; tm.userData.tile = true; worldG.add(tm);
+  }
 }
 
 // ---------------------------------------------------------------- water + sky
@@ -191,12 +206,13 @@ function buildSky() {
     uniforms: { uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uSun: { value: new THREE.Vector3(.4, .8, -.3) }, uSunC: { value: new THREE.Color() } } });
   skyMesh = new THREE.Mesh(new THREE.SphereGeometry(1200, 24, 14), skyMat); skyMesh.renderOrder = -10; skyMesh.frustumCulled = false; scene.add(skyMesh);
   const cm = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, transparent: true, opacity: .9 }), sg = new THREE.IcosahedronGeometry(1, 1), r = rng(77);
-  for (let i = 0; i < 22; i++) {
-    const g = new THREE.Group();
-    for (let k = 0; k < 4 + r() * 3; k++) { const m = new THREE.Mesh(sg, cm); m.position.set((r() - .5) * 60, (r() - .5) * 6, (r() - .5) * 26); m.scale.set(18 + r() * 16, 7 + r() * 5, 14 + r() * 10); g.add(m); }
-    g.position.set((r() - .5) * 1500, 190 + r() * 150, (r() - .5) * 1500 + 250); g.userData.v = 1.5 + r() * 2.5; scene.add(g); clouds.push(g);
-  }
+  // all cloud puffs in one instanced mesh = one draw call
+  let n = 0;
+  for (let i = 0; i < 22; i++) { const c = { x: (r() - .5) * 1500, y: 190 + r() * 150, z: (r() - .5) * 1500 + 250, v: 1.5 + r() * 2.5, p: [] }; for (let k = 0; k < 4 + r() * 3; k++) { c.p.push([(r() - .5) * 60, (r() - .5) * 6, (r() - .5) * 26, 18 + r() * 16, 7 + r() * 5, 14 + r() * 10]); n++; } clouds.push(c); }
+  GFX.cloudMesh = new THREE.InstancedMesh(sg, cm, n); GFX.cloudMesh.frustumCulled = false; scene.add(GFX.cloudMesh); placeClouds();
 }
+const _cd = new THREE.Object3D();
+function placeClouds() { let i = 0; for (const c of clouds) for (const q of c.p) { _cd.position.set(c.x + q[0], c.y + q[1], c.z + q[2]); _cd.scale.set(q[3], q[4], q[5]); _cd.updateMatrix(); GFX.cloudMesh.setMatrixAt(i++, _cd.matrix); } GFX.cloudMesh.instanceMatrix.needsUpdate = true; }
 const _c1 = new THREE.Color(), _c2 = new THREE.Color();
 function updateMood(z, dt, px, py, pz) {
   let i = 0; while (i < MOODS.length - 2 && z > MOODS[i + 1].z) i++;
@@ -205,24 +221,26 @@ function updateMood(z, dt, px, py, pz) {
   lc(a.top, b.top, skyMat.uniforms.uTop.value); lc(a.hor, b.hor, skyMat.uniforms.uHor.value); lc(a.fog, b.fog, scene.fog.color); lc(a.sun, b.sun, sun.color);
   skyMat.uniforms.uSunC.value.copy(sun.color);
   scene.fog.density = lerp(a.fd, b.fd, t) * [1.5, 1.15, 1, .85][SET.dist];
+  const far = clamp(2.5 / scene.fog.density, 180, [500, 800, 1200, 1800][SET.dist] || 1200); if (Math.abs(far - camera.far) > 5) { camera.far = far; camera.updateProjectionMatrix(); }
   sun.intensity = lerp(a.si, b.si, t); hemi.color.copy(skyMat.uniforms.uHor.value); hemi.intensity = .62;
   const d = skyMat.uniforms.uSun.value.set(lerp(a.dir[0], b.dir[0], t), lerp(a.dir[1], b.dir[1], t), lerp(a.dir[2], b.dir[2], t)).normalize();
   sun.target.position.set(px, py, pz); sun.position.set(px + d.x * 120, py + d.y * 120, pz + d.z * 120);
   skyMesh.position.copy(camera.position);
   for (const m of [waterMat, ...streamMats]) { m.uniforms.uT.value = GFX.t; m.uniforms.uFog.value.copy(scene.fog.color); m.uniforms.uFogD.value = scene.fog.density; }
-  for (const c of clouds) { c.position.x += c.userData.v * dt; if (c.position.x > 800) c.position.x = -800; }
+  for (const c of clouds) { c.x += c.v * dt; if (c.x > 800) c.x = -800; } GFX.cloudT = (GFX.cloudT || 0) + dt; if (GFX.cloudT > .25) { GFX.cloudT = 0; placeClouds(); }
 }
 
 // ---------------------------------------------------------------- vegetation + static props
 function instanced(name, list, dbl) {            // list: [x,y,z,ry,s]
   if (!list.length) return;
   const chunks = new Map();
-  for (const it of list) { const k = Math.floor(it[2] / 70); if (!chunks.has(k)) chunks.set(k, []); chunks.get(k).push(it); }
+  for (const it of list) { const k = Math.floor(it[0] / 64) + ',' + Math.floor(it[2] / 64); if (!chunks.has(k)) chunks.set(k, []); chunks.get(k).push(it); }
+  const cls = SMALL_VEG.has(name) ? 0 : BIG_VEG.has(name) ? 2 : 1;
   const d = new THREE.Object3D();
   for (const arr of chunks.values()) {
     const m = new THREE.InstancedMesh(baked(name), dbl ? vcMat2 : vcMat, arr.length);
     arr.forEach((it, i) => { d.position.set(it[0], it[1], it[2]); d.rotation.set(it[5] || 0, it[3], 0); d.scale.setScalar(it[4]); d.updateMatrix(); m.setMatrixAt(i, d.matrix); });
-    m.castShadow = name !== 'grass' && name.indexOf('flower') < 0; m.receiveShadow = true;
+    m.userData.cast = cls > 0 && name !== 'bush'; m.castShadow = false; m.receiveShadow = true; m.userData.cls = cls;
     m.geometry.computeBoundingSphere(); m.frustumCulled = false; worldG.add(m);
     // manual chunk culling sphere
     let cx = 0, cy = 0, cz = 0; arr.forEach(it => { cx += it[0]; cy += it[1]; cz += it[2]; }); cx /= arr.length; cy /= arr.length; cz /= arr.length;
@@ -232,7 +250,18 @@ function instanced(name, list, dbl) {            // list: [x,y,z,ry,s]
 }
 GFX.chunks = [];
 const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
-function cullChunks() { _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm); for (const m of GFX.chunks) m.visible = _fr.intersectsSphere(m.userData.cs); }
+const SMALL_VEG = new Set(['grass', 'flower_a', 'flower_b', 'flower_c', 'fern', 'mushroom']), BIG_VEG = new Set(['palm_a', 'palm_b', 'jtree_a', 'jtree_b', 'jtree_c', 'pine', 'pine_snow', 'mush_giant', 'cactus', 'deadtree', 'banana_plant']);
+const _cp = new THREE.Vector3();
+// draw a vegetation chunk only if it is in view and close enough for its size; only nearby chunks cast shadows
+function cullChunks() {
+  _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
+  const far = camera.far, lim = [Math.min(75, far), Math.min(far * .6, 190), Math.min(far, 420)], px = ME.g ? ME.x : camera.position.x, pz = ME.g ? ME.z : camera.position.z;
+  for (const m of GFX.chunks) {
+    const s = m.userData.cs, d = s.center.distanceTo(camera.position) - s.radius;
+    m.visible = d < lim[m.userData.cls] && _fr.intersectsSphere(s);
+    m.castShadow = m.visible && m.userData.cast && Math.hypot(s.center.x - px, s.center.z - pz) - s.radius < 38;
+  }
+}
 function nearHazard(x, z, m) { for (const o of LAVA) if (dist2(x, z, o.x, o.z) < o.r + m) return true; for (const o of OASES) if (dist2(x, z, o.x, o.z) < o.r + m) return true; for (const v of VENTS) if (dist2(x, z, v.x, v.z) < 2 + m) return true; for (const b of L.bags) if (dist2(x, z, b.x, b.z) < 1.2 + m * .4) return true; return false; }
 function nearStation(x, z, r) {
   const pts = [L.plane, L.tail, L.wing, L.lookout, L.gate, L.vault, L.tree, L.radio, L.heli, L.leverChest, L.tablet, ...L.camps, ...L.totems, ...L.plates, ...L.logs, ...L.stakes, ...L.levers, ...L.digs, ...L.crates, ...L.pitChests];
@@ -405,7 +434,7 @@ function buildAnimals() {
 function updateAnimals(dt, players) {
   for (const a of GFX.animals) {
     a.t += dt; const o = a.o;
-    if (Math.abs(a.z - camera.position.z) > 170 && a.kind !== 'gull') { o.visible = false; continue; } o.visible = true;
+    const ad = Math.hypot(a.x - camera.position.x, a.z - camera.position.z); if (a.kind !== 'gull' && ad > (a.kind === 'butterfly' ? 45 : a.kind === 'parrot' ? 110 : 85)) { o.visible = false; continue; } o.visible = true;
     if (a.kind === 'gull' || a.kind === 'parrot') {
       const ang = a.t * a.sp; a.x = a.cx + Math.sin(ang) * a.rad; a.z = a.cz + Math.cos(ang) * a.rad * .7; a.y = getH(a.cx, a.cz) + a.h + Math.sin(a.t * .7) * 2;
       o.position.set(a.x, Math.max(a.y, 6), a.z); o.rotation.y = ang + Math.PI / 2 + (a.kind === 'parrot' ? 0 : 0); const f = Math.sin(a.t * (a.kind === 'gull' ? 5 : 14)) * .7;
@@ -438,7 +467,7 @@ function updateAnimals(dt, players) {
 // ---------------------------------------------------------------- rebuilding the island for a new seed
 let waterTex = null;
 function clearWorld() {
-  for (const c of worldG.children.slice()) { worldG.remove(c); if (c.isInstancedMesh) c.dispose(); }
+  for (const c of worldG.children.slice()) { worldG.remove(c); if (c.isInstancedMesh) c.dispose(); if (c.userData.tile) c.geometry.dispose(); }
   if (terrainMesh) { terrainMesh.geometry.dispose(); terrainMesh = null; }
   GFX.colGrid.clear(); GFX.chunks.length = 0; GFX.animals.length = 0; GFX.fires.length = 0; streamMats.length = 0;
 }

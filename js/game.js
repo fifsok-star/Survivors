@@ -117,7 +117,7 @@ function onWorld(W) {
 }
 function updateDynamic(dt) {
   const W = WS; if (!W) return;
-  for (const m of OBJ.items.values()) { const u = m.userData; u.ph += dt; if (u.fy > u.it.y) u.fy = Math.max(u.it.y, u.fy - dt * 9); m.position.y = u.fy + .25 + Math.sin(u.ph * 2) * .07; m.rotation.y = u.ph * .9; }
+  for (const m of OBJ.items.values()) { const u = m.userData; m.visible = Math.abs(u.it.z - camera.position.z) < 90 && Math.abs(u.it.x - camera.position.x) < 90; if (!m.visible) continue; u.ph += dt; if (u.fy > u.it.y) u.fy = Math.max(u.it.y, u.fy - dt * 9); m.position.y = u.fy + .25 + Math.sin(u.ph * 2) * .07; m.rotation.y = u.ph * .9; }
   const gy = W.totems.open ? L.gate.y - 7.2 : L.gate.y - .4; OBJ.gate.position.y += (gy - OBJ.gate.position.y) * Math.min(1, dt * 1.2);
   OBJ.tree.visible = !W.saw.done;
   OBJ.levers.forEach((m, i) => { const t = W.levers.st[i] ? -.75 : .75; m.rotation.x += (t - m.rotation.x) * Math.min(1, dt * 10); });
@@ -506,7 +506,8 @@ function frame(now) {
   } else {
     menuCamera(GFX.t); updateMood(-20, dt, L.plane.x, L.plane.y, L.plane.z); updateAnimals(dt, []);
   }
-  cullChunks();
+  cullChunks(); adaptRes(dt);
+  if (renderer.shadowMap.enabled) { GFX.sf = (GFX.sf || 0) + 1; if (GFX.sf % 2 === 0 || SET.shadows > 2) renderer.shadowMap.needsUpdate = true; }
   renderer.render(scene, camera);
   if (SET.fps) { fpsN++; fpsT += dt; if (fpsT > .5) { $('fps').textContent = Math.round(fpsN / fpsT) + ' FPS'; fpsN = 0; fpsT = 0; } }
 }
