@@ -98,4 +98,4 @@ async function boot() {
     if (/[?&]auto=host/.test(location.search)) createRoom(); else if (/[?&]join=/.test(location.search) && /[?&]auto=1/.test(location.search)) joinRoom();
   } catch (e) { console.error(e); $('loadText').textContent = 'Error: ' + (e && e.message || e); }
 }
-window.addEventListener('load', boot);
+if (document.readyState === 'complete') boot(); else window.addEventListener('load', boot);

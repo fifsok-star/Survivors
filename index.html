@@ -41,7 +41,7 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 #staFill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(#b6f05a,#6cc22e);transition:width .08s}
 #staFill.low{background:linear-gradient(#ffb04a,#e8662a)}#staFill.boost{background:linear-gradient(#7fe8ff,#2aa8e8)}
 #staInj{position:absolute;right:0;top:0;bottom:0;background:repeating-linear-gradient(45deg,#c2332b,#c2332b 6px,#8f1f1a 6px,#8f1f1a 12px)}
-#staHun{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#d9a52e,#d9a52e 6px,#a87b18 6px,#a87b18 12px)}
+#staTmp{position:absolute;top:0;bottom:0}#staTmp.cold{background:repeating-linear-gradient(45deg,#9fd8ff,#9fd8ff 6px,#5aa8e0 6px,#5aa8e0 12px)}#staTmp.hot{background:repeating-linear-gradient(45deg,#ffcf4a,#ffcf4a 6px,#ff8a2a 6px,#ff8a2a 12px)}#staHun{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#d9a52e,#d9a52e 6px,#a87b18 6px,#a87b18 12px)}
 #alt{position:absolute;right:-74px;top:-2px;font-weight:900;font-size:18px}
 #quick{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
 .slot{width:74px;height:74px;border-radius:12px;border:3px solid #4a2d14;background:rgba(246,230,189,.88);position:relative;font-size:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#3a2a17;text-shadow:none}
@@ -56,13 +56,13 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 .mbar{height:9px;border:1px solid rgba(0,0,0,.5);background:#333;border-radius:3px;margin-top:4px;position:relative;overflow:hidden}.mbar div{position:absolute;left:0;top:0;bottom:0;background:#8fd35a}.mbar i{position:absolute;right:0;top:0;bottom:0;background:#c2332b}
 #toasts{position:absolute;right:12px;top:60px;width:min(330px,40vw);display:flex;flex-direction:column;gap:6px;align-items:flex-end}
 .toast{background:rgba(20,30,20,.65);border-left:5px solid #ffe08a;border-radius:8px;padding:7px 12px;font-weight:700;font-size:14px;transition:opacity .5s}.toast.out{opacity:0}.toast.bad{border-color:#ee5a44}.toast.ev{border-color:#8fd35a}.toast.hint{border-color:#7fc8d8}
-#koBox{display:none;position:absolute;top:36%;left:50%;transform:translateX(-50%);background:rgba(120,10,10,.7);padding:14px 22px;border-radius:12px;font-weight:900;font-size:20px;text-align:center}
+#biome{position:absolute;top:26%;left:50%;transform:translate(-50%,-10px);text-align:center;opacity:0;transition:opacity 1s,transform 1s}#biome.show{opacity:1;transform:translate(-50%,0)}#biome b{display:block;font-size:54px;letter-spacing:.08em;color:#ffe9a8;-webkit-text-stroke:2px #5a2f12;text-shadow:0 5px 0 #5a2f12}#biome span{display:block;font-weight:800;font-size:18px;margin-top:6px}#koBox{display:none;position:absolute;top:36%;left:50%;transform:translateX(-50%);background:rgba(120,10,10,.7);padding:14px 22px;border-radius:12px;font-weight:900;font-size:20px;text-align:center}
 #board{display:none;position:absolute;top:120px;left:50%;transform:translateX(-50%);background:linear-gradient(#f6e6bd,#e9d19a);color:#3a2a17;text-shadow:none;border:4px solid #6b4423;border-radius:14px;padding:10px 22px;text-align:center;font-weight:800}
 #boardSyms{font-size:40px;letter-spacing:.05em;color:#5a2a1a}
 #compass{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:min(460px,56vw);height:50px;background:rgba(20,30,20,.55);border:2px solid rgba(255,233,168,.7);border-radius:12px;overflow:hidden}#compass:after{content:'';position:absolute;left:50%;top:0;margin-left:-7px;border:7px solid transparent;border-top-color:#ffd34d}#compass i{position:absolute;top:6px;width:40px;margin-left:-20px;text-align:center;font-style:normal;font-weight:900;font-size:15px}#compass i.c{color:#ffd34d;font-size:18px;top:4px}#compass i.t{top:9px;font-size:9px;opacity:.6}#compass i.p{top:25px;font-size:16px}#compass i.m{top:26px}#compass i.m b{display:block;width:18px;height:18px;margin:auto;border-radius:50%;border:2px solid #fff;background-color:#f6e6bd;background-size:205%;background-position:50% 9%}
 #fps{display:none;position:absolute;left:14px;top:12px;font-weight:800;font-size:13px}
 #keys{position:absolute;left:12px;bottom:12px;font-size:12px;opacity:.8;font-weight:700;line-height:1.5}
-#vign{position:absolute;inset:0;box-shadow:inset 0 0 0 0 rgba(200,0,0,0);transition:box-shadow .4s}#vign.water{box-shadow:inset 0 0 220px 90px rgba(10,70,160,.75)}#vign.hit{box-shadow:inset 0 0 160px 40px rgba(200,0,0,.6)}
+#vign{position:absolute;inset:0;box-shadow:inset 0 0 0 0 rgba(200,0,0,0);transition:box-shadow .4s}#vign.water{box-shadow:inset 0 0 220px 90px rgba(10,70,160,.75)}#vign.cold{box-shadow:inset 0 0 200px 60px rgba(170,220,255,.65)}#vign.hot{box-shadow:inset 0 0 200px 50px rgba(255,140,40,.45)}#vign.hit{box-shadow:inset 0 0 160px 40px rgba(200,0,0,.6)}
 #mapview{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-2deg);pointer-events:auto;background:#e2cf9a;border:10px solid #c9b077;border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.6);padding:8px;color:#5a3a1a;text-shadow:none;text-align:center;font-weight:800}
 #mapcv{width:min(440px,70vw);height:auto;display:block;filter:sepia(.35)}
 #loadBar{width:min(420px,70vw);height:18px;border:3px solid #ffe9a8;border-radius:10px;overflow:hidden;margin-top:14px}#loadFill{height:100%;width:0;background:#ffe9a8;transition:width .2s}
@@ -99,10 +99,10 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 <div id="hud">
   <div id="vign"></div><div id="fps"></div><div id="objective"></div><div id="compass"></div><div id="mates"></div><div id="toasts"></div>
   <div id="board"><div data-i18n="board_title"></div><div id="boardSyms"></div></div>
-  <div id="koBox"></div><div id="prompt"></div>
+  <div id="biome"></div><div id="koBox"></div><div id="prompt"></div>
   <div id="pack" class="panel"><b data-i18n="inv_title"></b><div id="packslots"></div><small data-i18n="inv_help"></small></div>
   <div id="quick"></div>
-  <div id="staWrap"><div id="staBar"><div id="staFill"></div><div id="staHun"></div><div id="staInj"></div></div><div id="alt"></div></div>
+  <div id="staWrap"><div id="staBar"><div id="staFill"></div><div id="staHun"></div><div id="staTmp"></div><div id="staInj"></div></div><div id="alt"></div></div>
   <div id="mapview"><div data-i18n="map_title"></div><canvas id="mapcv" width="440" height="440"></canvas></div>
   <div id="keys">WASD · Shift · Space · E · F · G · Tab · 1-3 · Esc</div>
 </div>
@@ -132,12 +132,13 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 <script src="vendor/three.min.js"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/peerjs.min.js"></script>
-<script src="js/i18n.js"></script>
-<script src="js/world.js"></script>
-<script src="js/gfx.js"></script>
-<script src="js/net.js"></script>
-<script src="js/host.js"></script>
-<script src="js/game.js"></script>
-<script src="js/ui.js"></script>
+<script>
+// the published game runs from the packed build; ?dev=1 (or a local server) runs the readable sources
+(function () {
+  var q = location.search, dev = /[?&]dev=1/.test(q) || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && !/[?&]pak=1/.test(q));
+  var f = dev ? ['i18n', 'world', 'gfx', 'net', 'host', 'game', 'ui'].map(function (n) { return 'js/' + n + '.js'; }) : ['game.pak.js'];
+  f.forEach(function (x) { document.write('<script src="' + x + '"><\/script>'); });
+})();
+</script>
 </body>
 </html>
