@@ -56,7 +56,7 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 .mbar{height:9px;border:1px solid rgba(0,0,0,.5);background:#333;border-radius:3px;margin-top:4px;position:relative;overflow:hidden}.mbar div{position:absolute;left:0;top:0;bottom:0;background:#8fd35a}.mbar i{position:absolute;right:0;top:0;bottom:0;background:#c2332b}
 #toasts{position:absolute;right:12px;top:60px;width:min(330px,40vw);display:flex;flex-direction:column;gap:6px;align-items:flex-end}
 .toast{background:rgba(20,30,20,.65);border-left:5px solid #ffe08a;border-radius:8px;padding:7px 12px;font-weight:700;font-size:14px;transition:opacity .5s}.toast.out{opacity:0}.toast.bad{border-color:#ee5a44}.toast.ev{border-color:#8fd35a}.toast.hint{border-color:#7fc8d8}
-#wind{display:none;position:absolute;top:116px;left:50%;transform:translateX(-50%);background:rgba(40,60,90,.65);border-radius:10px;padding:6px 14px;font-weight:900;font-size:18px}#biome{position:absolute;top:26%;left:50%;transform:translate(-50%,-10px);text-align:center;opacity:0;transition:opacity 1s,transform 1s}#biome.show{opacity:1;transform:translate(-50%,0)}#biome b{display:block;font-size:54px;letter-spacing:.08em;color:#ffe9a8;-webkit-text-stroke:2px #5a2f12;text-shadow:0 5px 0 #5a2f12}#biome span{display:block;font-weight:800;font-size:18px;margin-top:6px}#koBox{display:none;position:absolute;top:36%;left:50%;transform:translateX(-50%);background:rgba(120,10,10,.7);padding:14px 22px;border-radius:12px;font-weight:900;font-size:20px;text-align:center}
+#wind{display:none;position:absolute;top:116px;left:50%;transform:translateX(-50%);background:rgba(40,60,90,.65);border-radius:10px;padding:6px 14px;font-weight:900;font-size:18px}#cross{display:none;position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 0 0 1.5px rgba(0,0,0,.45)}#biome{position:absolute;top:26%;left:50%;transform:translate(-50%,-10px);text-align:center;opacity:0;transition:opacity 1s,transform 1s}#biome.show{opacity:1;transform:translate(-50%,0)}#biome b{display:block;font-size:54px;letter-spacing:.08em;color:#ffe9a8;-webkit-text-stroke:2px #5a2f12;text-shadow:0 5px 0 #5a2f12}#biome span{display:block;font-weight:800;font-size:18px;margin-top:6px}#koBox{display:none;position:absolute;top:36%;left:50%;transform:translateX(-50%);background:rgba(120,10,10,.7);padding:14px 22px;border-radius:12px;font-weight:900;font-size:20px;text-align:center}
 #board{display:none;position:absolute;top:120px;left:50%;transform:translateX(-50%);background:linear-gradient(#f6e6bd,#e9d19a);color:#3a2a17;text-shadow:none;border:4px solid #6b4423;border-radius:14px;padding:10px 22px;text-align:center;font-weight:800}
 #boardSyms{font-size:40px;letter-spacing:.05em;color:#5a2a1a}
 #compass{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:min(460px,56vw);height:50px;background:rgba(20,30,20,.55);border:2px solid rgba(255,233,168,.7);border-radius:12px;overflow:hidden}#compass:after{content:'';position:absolute;left:50%;top:0;margin-left:-7px;border:7px solid transparent;border-top-color:#ffd34d}#compass i{position:absolute;top:6px;width:40px;margin-left:-20px;text-align:center;font-style:normal;font-weight:900;font-size:15px}#compass i.c{color:#ffd34d;font-size:18px;top:4px}#compass i.t{top:9px;font-size:9px;opacity:.6}#compass i.p{top:25px;font-size:16px}#compass i.m{top:26px}#compass i.m b{display:block;width:18px;height:18px;margin:auto;border-radius:50%;border:2px solid #fff;background-color:#f6e6bd;background-size:205%;background-position:50% 9%}
@@ -99,7 +99,7 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 <div id="hud">
   <div id="vign"></div><div id="fps"></div><div id="objective"></div><div id="compass"></div><div id="mates"></div><div id="toasts"></div>
   <div id="board"><div data-i18n="board_title"></div><div id="boardSyms"></div></div>
-  <div id="biome"></div><div id="wind"></div><div id="koBox"></div><div id="prompt"></div>
+  <div id="cross"></div><div id="biome"></div><div id="wind"></div><div id="koBox"></div><div id="prompt"></div>
   <div id="pack" class="panel"><b data-i18n="inv_title"></b><div id="packslots"></div><small data-i18n="inv_help"></small></div>
   <div id="quick"></div>
   <div id="staWrap"><div id="staBar"><div id="staFill"></div><div id="staHun"></div><div id="staPoi"></div><div id="staTmp"></div><div id="staInj"></div></div><div id="alt"></div></div>
@@ -115,6 +115,7 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 <div id="settings" class="overlay"><div class="panel"><h2 data-i18n="s_title"></h2>
   <div class="set">
     <label data-i18n="m_lang"></label><select id="lang"></select>
+    <label data-i18n="s_view"></label><select id="s_view"><option value="0" data-i18n="v_fp"></option><option value="1" data-i18n="v_tp"></option></select>
     <label data-i18n="s_sens"></label><input id="s_sens" type="range" min="1" max="100">
     <label data-i18n="s_inv"></label><input id="s_inv" type="checkbox">
     <label data-i18n="s_fov"></label><input id="s_fov" type="range" min="50" max="100">
@@ -138,7 +139,7 @@ h2{margin:4px 0 8px;font-size:22px}h3{margin:6px 0;font-size:16px}
 // the published game runs from the packed build; ?dev=1 (or a local server) runs the readable sources
 (function () {
   var q = location.search, dev = /[?&]dev=1/.test(q) || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && !/[?&]pak=1/.test(q));
-  var f = dev ? ['i18n', 'world', 'gfx', 'net', 'host', 'skel', 'intro', 'game', 'ui'].map(function (n) { return 'js/' + n + '.js'; }) : ['game.pak.js'];
+  var f = dev ? ['i18n', 'world', 'gfx', 'net', 'host', 'skel', 'intro', 'fp', 'game', 'ui'].map(function (n) { return 'js/' + n + '.js'; }) : ['game.pak.js'];
   f.forEach(function (x) { document.write('<script src="' + x + '"><\/script>'); });
 })();
 </script>

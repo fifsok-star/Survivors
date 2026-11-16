@@ -49,7 +49,7 @@ function joinRoom() {
 function leave() { Net.close(); phase = 'menu'; WS = null; OTH.forEach(o => scene.remove(o.g)); OTH.clear(); if (ME.g) { scene.remove(ME.g); ME.g = null; } document.exitPointerLock(); ui.show('menu'); }
 function bindSettings() {
   const R = (id, key, after) => { const el = $(id); if (el.type === 'checkbox') el.checked = !!SET[key]; else el.value = SET[key]; el.oninput = el.onchange = () => { SET[key] = el.type === 'checkbox' ? (el.checked ? 1 : 0) : +el.value; saveAll(); after && after(); }; };
-  R('s_sens', 'sens'); R('s_inv', 'invY'); R('s_fov', 'fov', applyGfxSettings); R('s_shadows', 'shadows', applyGfxSettings); R('s_bright', 'bright', applyGfxSettings); R('s_quality', 'quality', applyGfxSettings); R('s_dist', 'dist', applyGfxSettings);
+  if (SET.view == null) SET.view = 0; R('s_view', 'view'); R('s_sens', 'sens'); R('s_inv', 'invY'); R('s_fov', 'fov', applyGfxSettings); R('s_shadows', 'shadows', applyGfxSettings); R('s_bright', 'bright', applyGfxSettings); R('s_quality', 'quality', applyGfxSettings); R('s_dist', 'dist', applyGfxSettings);
   R('s_vol', 'vol', () => { if (master) master.gain.value = SET.vol / 100; }); R('s_fps', 'fps', () => { $('fps').style.display = SET.fps ? 'block' : 'none'; });
   $('fps').style.display = SET.fps ? 'block' : 'none';
   const ls = $('lang'); ls.innerHTML = Object.keys(LANGS).map(k => `<option value="${k}">${LANGS[k]}</option>`).join(''); ls.value = LANG;
@@ -69,11 +69,13 @@ function bindInput() {
     else if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3') { ME.sel = +e.code.slice(5) - 1; drawInv(); }
     else if (e.code === 'KeyR' && ME.ko && (ME.koT > 8 || !OTH.size)) respawn();
     else if (e.code === 'KeyP') ui.pause(!ui.paused);
+    else if (e.code === 'KeyV') { SET.view = FP() ? 1 : 0; saveAll(); $('s_view').value = SET.view; CAM.pitch = clamp(CAM.pitch, -.75, 1.35); }
   });
   addEventListener('keyup', e => { KEY[e.code] = false; if (e.code === 'Space') KEY._jl = false; });
   addEventListener('blur', () => { for (const k in KEY) KEY[k] = false; });
-  cv.addEventListener('mousedown', e => { if (phase !== 'play' || ui.paused) return; audioInit(); if (document.pointerLockElement !== cv) { if (!invOpen) lockPointer(); } else if (e.button === 0) useItem(); });
-  addEventListener('mousemove', e => { if (document.pointerLockElement !== cv || phase !== 'play') return; const s = .0006 + SET.sens / 100 * .005; CAM.yaw -= e.movementX * s; CAM.pitch = clamp(CAM.pitch + e.movementY * s * (SET.invY ? -1 : 1), -.75, 1.35); });
+  cv.addEventListener('mousedown', e => { if (phase !== 'play' || ui.paused) return; audioInit(); if (document.pointerLockElement !== cv) { if (!invOpen) lockPointer(); } else if (e.button === 0 || e.button === 2) { if (handGrab(e.button === 0 ? 'L' : 'R')) return; if (e.button === 0) useItem(); } });
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  addEventListener('mousemove', e => { if (document.pointerLockElement !== cv || phase !== 'play') return; const s = .0006 + SET.sens / 100 * .005; CAM.yaw -= e.movementX * s; CAM.pitch = clamp(CAM.pitch + e.movementY * s * (SET.invY ? -1 : 1), FP() ? -1.4 : -.75, FP() ? 1.4 : 1.35); });
   addEventListener('wheel', e => { if (phase !== 'play' || invOpen) return; ME.sel = (ME.sel + (e.deltaY > 0 ? 1 : 2)) % 3; drawInv(); }, { passive: true });
   let hadLock = false;
   document.addEventListener('pointerlockchange', () => { const l = document.pointerLockElement === cv; if (!l && hadLock && phase === 'play' && !invOpen) ui.pause(true); hadLock = l; });

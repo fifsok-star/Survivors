@@ -261,6 +261,7 @@ function updateMe(dt) {
     const rope = ropeNear(me.x, me.z), pit = inPit(me.x, me.y, me.z) >= 0, pin = pitonNear(me.x, me.y, me.z);
     let rx = -sl.gz, rz = sl.gx; if (rx * -fz + rz * fx < 0) { rx = -rx; rz = -rz; }          // "right" along the wall as the camera sees it
     const ca = Math.cos(sl.ang), k = rope ? 1.5 : 1;
+    for (const sd of ['L', 'R']) { const H = VM.hand[sd]; if (H && H.ready) { H.ready = false; handStep(sd, sl, ca, rx, rz); n.x = me.x; n.z = me.z; } }   // hand-over-hand (first person)
     if (me.lunge > 0) { me.lunge -= dt; n.x += sl.gx * ca * 6.2 * dt; n.z += sl.gz * ca * 6.2 * dt; }
     else if (moving) {
       const up = iz > 0 ? 1.75 : 2.3;                                                       // m/s along the rock, faster going down
@@ -435,6 +436,7 @@ function onEv(e) {
 // ---------------------------------------------------------------- camera
 const _v = new THREE.Vector3();
 function updateCamera(dt) {
+  if (FP()) { updateCameraFP(dt); return; }
   const me = ME, ty = me.y + 1.55, cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch), fx = Math.sin(CAM.yaw), fz = Math.cos(CAM.yaw);
   const wall = ME.anim === 'climb' || ME.anim === 'slide'; CAM.dz = (CAM.dz || 0) + ((wall ? 1.6 : 0) - (CAM.dz || 0)) * Math.min(1, dt * 3);
   let d = CAM.dist + CAM.dz;
@@ -473,7 +475,8 @@ function updateHud(dt) {
   drawCompass();
   hudAcc += dt; if (hudAcc < .25) return; hudAcc = 0;
   $('alt').textContent = Math.max(0, Math.round(ME.y)) + ' m';
-  $('keys').textContent = ME.anim === 'climb' ? T('k_climb') : 'WASD · Shift · Space · E · F · G · Tab · 1-3 · Esc';
+  $('cross').style.display = FP() ? 'block' : 'none';
+  $('keys').textContent = ME.anim === 'climb' ? T(FP() ? 'k_climb_fp' : 'k_climb') : 'WASD · Shift · Space · E · F · G · Tab · 1-3 · Esc';
   const row = (n, c, sta, mxs, ko, me, extra) => `<div class="mate${ko ? ' ko' : ''}${me ? ' me' : ''}"><div class="ph" style="background-image:url(${ui.thumbs[c] || ''})"></div><div class="inf"><div class="nm"><span>${ko ? '💀 ' : ''}${esc(n)}</span><em>${extra}</em></div><div class="mbar"><div style="width:${clamp(sta || 0, 0, 100)}%"></div><i style="width:${100 - (mxs == null ? 100 : mxs)}%"></i></div></div></div>`;
   const mine = lobby.players.find(p => p.id === ME.id) || { n: SAVE.name || T('char' + SAVE.ch), c: SAVE.ch };
   let h = row(mine.n, mine.c, ME.sta, mx, ME.ko, true, Math.round(ME.sta) + '%');
@@ -496,7 +499,7 @@ function frame(now) {
     if (ME.g) { ME.g.position.set(ME.x, ME.y, ME.z); let d = ME.ry - ME.g.rotation.y; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; ME.g.rotation.y += d * Math.min(1, dt * 14); animChar(ME.g, ME.punch > 0 ? 'punch' : ME.anim, dt, 0, ME.moving); setHeld(ME.g, ME.anim === 'climb' || ME.anim === 'tree' || ME.anim === 'carry' || ME.anim === 'swim' ? '' : ME.quick[ME.sel]); ME.g.userData.tired = ME.anim === 'climb' && ME.sta < 22; }
     updateOthers(dt); updateDynamic(dt);
     if (!Net.isHost) { sendAcc += dt; if (sendAcc > .075) { sendAcc = 0; Net.toHost({ t: 'p', s: myState() }); } }
-    updateCamera(dt); updateHud(dt);
+    updateCamera(dt); updateViewmodel(dt); updateHud(dt);
     updateMood(ME.z, dt, ME.x, ME.y, ME.z);
     updateHazards(dt, ME.z, WS ? WS.time : GFX.t);
     if (AC) { const jung = sstep(40, 70, ME.z) * (1 - sstep(320, 350, ME.z)); ambF.frequency.value = lerp(lerp(520, 900, sstep(300, 500, ME.z)), 300, jung); ambG.gain.value = lerp(.06, .025, jung) + sstep(380, 520, ME.z) * .05; if (jung > .5 && Math.random() < dt * .5) sfx('bird'); if ((ME.anim === 'walk' || ME.anim === 'run' || (ME.anim === 'climb' || ME.anim === 'tree') && ME.moving)) { stepAcc += dt * (ME.anim === 'run' ? 1.6 : 1); if (stepAcc > .38) { stepAcc = 0; sfx('step'); } } }
@@ -515,7 +518,7 @@ function onStart(m) {
   buildWorldScene(); WS = null;
   myIdx = m.idx; ME.id = Net.id; OTH.forEach(o => scene.remove(o.g)); OTH.clear();
   Object.assign(ME, { sta: 100, inj: 0, hun: 0, ko: false, air: false, slide: false, mode: '', quick: [null, null, null], pack: [null, null, null, null, null, null], sel: 0, boost: 0, falls: 0 });
-  if (ME.g) scene.remove(ME.g); ME.g = makeChar(SAVE.ch); scene.add(ME.g);
+  if (ME.g) scene.remove(ME.g); ME.g = makeChar(SAVE.ch); scene.add(ME.g); buildViewmodel(SAVE.ch);
   const sp = m.late ? L.camps[m.W.cp] : L.spawn; ME.x = sp.x + (m.idx % 3) * 1.6 - 1.6; ME.z = sp.z - 2 - Math.floor(m.idx / 3) * 1.6; ME.y = getH(ME.x, ME.z); ME.ry = 0; CAM.yaw = 0; CAM.pitch = .25;
   ME.cold = ME.heat = ME.poison = 0; ME.bio = -1; ME.noFall = false; ME.held = -1; ME.punch = 0; REVEAL = {};
   onWorld(m.W); drawInv(); audioInit();
